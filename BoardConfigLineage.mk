@@ -14,7 +14,7 @@ TARGET_NEEDS_DTBOIMAGE := true
 # Partitions
 AB_OTA_PARTITIONS += \
     vendor
-BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
+BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := erofs
 
 # SELinux
 BOARD_SEPOLICY_DIRS += device/google/sunfish/sepolicy-lineage/dynamic
