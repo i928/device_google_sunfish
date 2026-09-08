@@ -11,7 +11,15 @@
 BOARD_KERNEL_IMAGE_NAME := Image.lz4
 TARGET_COMPILE_WITH_MSM_KERNEL := true
 TARGET_KERNEL_CONFIG := sunfish_defconfig
-TARGET_KERNEL_NO_GCC := true
+# TARGET_KERNEL_NO_GCC (LineageOS 52074bf3 "Compile the kernel without GCC") is
+# NOT usable on this kernel. It drops CROSS_COMPILE_ARM32, and msm-4.14 hard-
+# errors without it:
+#     arch/arm64/Makefile:75: *** CROSS_COMPILE_ARM32 not defined or empty,
+#     the compat vDSO will not be built.  Stop.
+# LOS can set it because their kernel branch does not have that check; ours
+# still does. We already build with clang via TARGET_KERNEL_CLANG_PATH below,
+# so this bought us nothing anyway.
+#TARGET_KERNEL_NO_GCC := true
 TARGET_KERNEL_SOURCE := kernel/google/msm-4.14
 # Kernel toolchain -- MUST match the kernel source in kernel/google/msm-4.14:
 #
