@@ -84,7 +84,7 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/init.insmod.sh:$(TARGET_COPY_OUT_VENDOR)/bin/init.insmod.sh \
     $(LOCAL_PATH)/init.sensors.sh:$(TARGET_COPY_OUT_VENDOR)/bin/init.sensors.sh \
     $(LOCAL_PATH)/thermal-engine-$(PRODUCT_HARDWARE).conf:$(TARGET_COPY_OUT_VENDOR)/etc/thermal-engine-$(PRODUCT_HARDWARE).conf \
-    $(LOCAL_PATH)/ueventd.rc:$(TARGET_COPY_OUT_VENDOR)/ueventd.rc \
+    $(LOCAL_PATH)/ueventd.rc:$(TARGET_COPY_OUT_VENDOR)/etc/ueventd.rc \
     $(LOCAL_PATH)/init.ramoops.sh:$(TARGET_COPY_OUT_VENDOR)/bin/init.ramoops.sh \
     $(LOCAL_PATH)/init.debuglog.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/init.debuglog.rc \
     $(LOCAL_PATH)/debuglog.sh:$(TARGET_COPY_OUT_VENDOR)/bin/debuglog.sh \
@@ -350,9 +350,10 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     android.hardware.usb.gadget-service.sunfish
 
+# Health
 PRODUCT_PACKAGES += \
-    android.hardware.health@2.1-impl-sunfish \
-    android.hardware.health@2.1-service
+    android.hardware.health-service.sunfish \
+    android.hardware.health-service.sunfish_recovery
 
 # Storage health HAL
 PRODUCT_PACKAGES += \
@@ -492,11 +493,6 @@ $(call inherit-product, frameworks/native/build/phone-xhdpi-6144-dalvik-heap.mk)
 # Use the default charger mode images
 PRODUCT_PACKAGES += \
     charger_res_images
-
-# Dumpstate HAL
-PRODUCT_PACKAGES += \
-    android.hardware.dumpstate@1.1-service.sunfish
-
 
 # Storage: for factory reset protection feature
 PRODUCT_PROPERTY_OVERRIDES += \
