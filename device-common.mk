@@ -146,3 +146,8 @@ PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST += \
     system/priv-app/DocumentsUIGoogle/DocumentsUIGoogle.apk \
     system/priv-app/GoogleExtServices/GoogleExtServices.apk \
     system/priv-app/TagGoogle/TagGoogle.apk
+# ART
+PRODUCT_SYSTEM_SERVER_COMPILER_FILTER := speed-profile
+WITH_DEXPREOPT := true
+DEX_PREOPT_DEFAULT := generate-vdex-and-image
+WITH_DEXPREOPT_DEBUG_INFO := false
