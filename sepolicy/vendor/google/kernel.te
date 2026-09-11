@@ -1,1 +1,8 @@
 allow kernel per_boot_file:file r_file_perms;
+
+# KSU systemless-modules overlay: the kernel loop-mounts
+# /data/adb/overlayfs/overlayfs.img (labeled adb_data_file). Without this the
+# image-backed mount is denied (avc kernel:s0 -> adb_data_file read) and EXT4
+# can't read its superblock; the mount then falls back, so this only silences
+# the denial. See android-abx-... / KSU overlayfs.
+allow kernel adb_data_file:file read;
