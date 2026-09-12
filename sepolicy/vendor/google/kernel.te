@@ -1,8 +1,23 @@
 allow kernel per_boot_file:file r_file_perms;
 
 # KSU systemless-modules overlay: the kernel loop-mounts
-# /data/adb/overlayfs/overlayfs.img (labeled adb_data_file). Without this the
-# image-backed mount is denied (avc kernel:s0 -> adb_data_file read) and EXT4
-# can't read its superblock; the mount then falls back, so this only silences
-# the denial. See android-abx-... / KSU overlayfs.
-allow kernel adb_data_file:file read;
+# /data/adb/overlayfs/overlayfs.img (labeled adb_data_file), so the loop worker
+# thread does both the reads AND the writes for that image from the kernel
+# domain.
+#
+# This was `:file read` only, which was enough to mount the image but not to
+# write it back. Every writeback failed closed, and because the loop driver can
+# only report that as a block error, it surfaced as I/O errors on a healthy
+# flash device and then took the image's journal down with it:
+#
+#   avc: denied { write } for path="/data/adb/overlayfs/overlayfs.img"
+#     scontext=u:r:kernel:s0 tcontext=u:object_r:adb_data_file:s0 tclass=file
+#   loop: Write error at byte offset 2015371264, length 4096.
+#   print_req_error: I/O error, dev loop43, sector 3936272
+#   JBD2: Error -5 detected when updating journal superblock for loop43-8.
+#   Aborting journal on device loop43-8.
+#
+# An aborted journal remounts the overlay read-only, so systemless module
+# changes silently stop persisting for the rest of the boot. rw_file_perms, to
+# match how the per_boot_file rule above is written.
+allow kernel adb_data_file:file rw_file_perms;
