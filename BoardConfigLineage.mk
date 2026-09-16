@@ -114,3 +114,6 @@ $(libksud_chmod_stamp): $(PRODUCT_OUT)/$(TARGET_COPY_OUT_PRODUCT)/app/KernelSUNe
 	touch $@
 endif
 droidcore: $(libksud_chmod_stamp)
+
+# if your ROM tree uses system_ext:
+SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += device/google/sunfish/sepolicy/custom_private

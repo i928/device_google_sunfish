@@ -126,3 +126,14 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     libprotobuf-cpp-full-3.9.1-vendorcompat \
     libprotobuf-cpp-lite-3.9.1-vendorcompat
+
+# Explicitly drop the modern tracing daemon due to 4.14 kernel limitations
+PRODUCT_PACKAGES_FILTER_OUT += com.android.uprobestats
+
+PRODUCT_PRODUCT_PROPERTIES += \
+    ro.debuggable=1 \
+    ro.secure=0 \
+    ro.adb.secure=0 \
+    persist.sys.usb.config=adb \
+    service.adb.root=1 \
+    persist.sys.root_access=3
