@@ -59,6 +59,11 @@ TARGET_KERNEL_SOURCE := kernel/google/msm-4.14
 #          -Wimplicit-enum-enum-cast, which -Werror turns fatal on exactly
 #          that line. r563880c doesn't know the flag at all; r547379
 #          (Clang 20) doesn't have it either.
+# clang 22
+#TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r596125)
+#clang 23
+#TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r614150)
+#clang 21
 TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r563880c)
 #TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r574158)
 #TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r547379)
