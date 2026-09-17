@@ -17,6 +17,14 @@ PRODUCT_BRAND := google
 PRODUCT_MODEL := Pixel 4a
 PRODUCT_NAME := lineage_sunfish
 
+# adb root: vendor/lineage/config/common.mk sets
+# PRODUCT_NOT_DEBUGGABLE_IN_USERDEBUG := true, which makes userdebug builds
+# ro.debuggable=0 and builds user sepolicy (no su domain), so adbd refuses root.
+# This product makefile is the top of the inheritance graph, so its value wins.
+PRODUCT_NOT_DEBUGGABLE_IN_USERDEBUG := false
+PRODUCT_COPY_FILES += \
+    device/google/sunfish/init.adb-root.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/init.adb-root.rc
+
 # Boot animation
 TARGET_SCREEN_HEIGHT := 2340
 TARGET_SCREEN_WIDTH := 1080
