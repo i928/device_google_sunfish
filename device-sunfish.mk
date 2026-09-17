@@ -130,10 +130,7 @@ PRODUCT_PACKAGES += \
 # Explicitly drop the modern tracing daemon due to 4.14 kernel limitations
 PRODUCT_PACKAGES_FILTER_OUT += com.android.uprobestats
 
+# Enable adb over USB by default. adb root itself comes from lineage_sunfish.mk
+# (PRODUCT_NOT_DEBUGGABLE_IN_USERDEBUG := false) + init.adb-root.rc.
 PRODUCT_PRODUCT_PROPERTIES += \
-    ro.debuggable=1 \
-    ro.secure=0 \
-    ro.adb.secure=0 \
-    persist.sys.usb.config=adb \
-    service.adb.root=1 \
-    persist.sys.root_access=3
+    persist.sys.usb.config=adb
