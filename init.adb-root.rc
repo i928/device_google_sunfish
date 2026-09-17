@@ -1,0 +1,13 @@
+# Start adbd as root so `adb shell` opens a root (#) shell without running
+# `adb root` first. adbd keeps root only when ro.debuggable=1 and
+# service.adb.root=1 (see should_drop_privileges() in packages/modules/adb),
+# so this needs PRODUCT_NOT_DEBUGGABLE_IN_USERDEBUG := false (lineage_sunfish.mk).
+#
+# The property trigger is queued at the start of init, before adbd is started,
+# so adbd comes up as root on its first start. `adb unroot` still works for the
+# current boot. ADB authorization (ro.adb.secure=1) is unchanged.
+#
+# Installed to /system_ext: a /vendor rc runs as vendor_init, which may not set
+# service.adb.root.
+on property:ro.debuggable=1
+    setprop service.adb.root 1
