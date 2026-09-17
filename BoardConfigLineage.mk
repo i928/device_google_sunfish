@@ -73,7 +73,11 @@ BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := erofs
 # SELinux
 BOARD_SEPOLICY_DIRS += device/google/sunfish/sepolicy-lineage/dynamic
 BOARD_SEPOLICY_DIRS += device/google/sunfish/sepolicy-lineage/vendor
+# prebuilts/extra-apps is untracked local content (see device.mk); skip its
+# sepolicy when a freshly synced tree does not have it.
+ifneq ($(wildcard device/google/sunfish/prebuilts/extra-apps/sepolicy/file_contexts),)
 BOARD_SEPOLICY_DIRS += device/google/sunfish/prebuilts/extra-apps/sepolicy
+endif
 
 # Verified Boot
 ifneq ($(WITH_AVB),true)
@@ -95,8 +99,13 @@ BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true
 # device.mk hits a "||PRODUCT-PATH-PH||" placeholder-substitution bug --
 # PRODUCT_OUT isn't fully resolved yet at product-config-parse time;
 # BoardConfigLineage.mk runs later and is fine).
+# Same condition as the libksud.so PRODUCT_COPY_FILES in device.mk: without
+# the app there is no copied file, so no rule may depend on it. When absent,
+# libksud_chmod_stamp stays empty and the droidcore line below is a no-op.
+ifneq ($(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/KernelSUNext.apk),)
 libksud_chmod_stamp := $(OUT_DIR)/libksud_chmod.stamp
 $(libksud_chmod_stamp): $(PRODUCT_OUT)/$(TARGET_COPY_OUT_PRODUCT)/app/KernelSUNext/lib/arm64/libksud.so
 	chmod 755 $<
 	touch $@
+endif
 droidcore: $(libksud_chmod_stamp)
