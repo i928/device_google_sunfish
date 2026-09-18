@@ -91,7 +91,8 @@ PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST += \
     system/etc/permissions/privapp_allowlist_com.google.android.ext.services.xml \
     system/priv-app/GoogleExtServices/GoogleExtServices.apk \
     system/priv-app/DocumentsUIGoogle/DocumentsUIGoogle.apk \
-    system/priv-app/TagGoogle/TagGoogle.apk
+    system/priv-app/TagGoogle/TagGoogle.apk \
+    system/priv-app/GooglePackageInstaller/GooglePackageInstaller.apk
 endif
 
 $(call inherit-product, vendor/google/sunfish/sunfish-vendor.mk)
