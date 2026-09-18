@@ -43,8 +43,22 @@ for zip in "$SRC"/*.zip; do
 		# No marker: a failure retries on the next boot rather than being
 		# silently skipped forever.
 		echo "$(date) FAILED $name" >> "$LOG"
+		failed=$((failed + 1))
 	fi
 done
+
+# ksud may refuse to run from the init domain (SELinux). KernelSU runs anything
+# in boot-completed.d itself, in its own root context, so hand the work over
+# there and let the next boot do it. /data/adb does not survive a wipe, which is
+# why this is a fallback and not the primary path.
+if [ "${failed:-0}" -gt 0 ] && [ "$installed" -eq 0 ]; then
+	if [ -d /data/adb/boot-completed.d ] &&
+		[ ! -f /data/adb/boot-completed.d/ksu-autoinstall.sh ]; then
+		cp "$0" /data/adb/boot-completed.d/ksu-autoinstall.sh &&
+			chmod 755 /data/adb/boot-completed.d/ksu-autoinstall.sh &&
+			echo "$(date) installs failed from init; handed off to boot-completed.d" >> "$LOG"
+	fi
+fi
 
 [ "$installed" -gt 0 ] || exit 0
 echo "$(date) $installed module(s) installed; reboot needed to activate" >> "$LOG"
