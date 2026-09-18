@@ -57,6 +57,23 @@ ifeq ($(WITH_GMS),false)
 PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST += \
     system/apex/com.google.android.permission.apex
 else
+# Flags, stated explicitly rather than left to defaults, so a file-level diff
+# against another sunfish tree shows what this build actually chose. Each of
+# these matches the default it would otherwise take, except the GApps variant:
+#   EVO_BUILD_TYPE          vendor/lineage/config/version.mk defaults Unofficial
+#   WITH_GMS                common_full_phone.mk defaults true
+#   TARGET_USES_PICO_GAPPS  unset means false; stated so the mini/pico/full
+#                           selection in common_full_phone.mk reads unambiguously
+#   TARGET_DISABLE_EPPE     false keeps enforce-product-packages-exist, i.e. a
+#                           missing requested package stays a build error
+# (lopro's tree also sets BUILD_BCR, TARGET_HAS_UDFPS and TARGET_INCLUDE_ACCORD,
+# which nothing in this vendor tree reads -- omitted rather than carried as
+# no-ops.)
+EVO_BUILD_TYPE := Unofficial
+WITH_GMS := true
+TARGET_USES_PICO_GAPPS := false
+TARGET_DISABLE_EPPE := false
+
 # Gapps: full, not mini. lopro's build signs in to Play on a freshly formatted,
 # unregistered, explicitly uncertified device, and ours does not; after diffing
 # the two device trees file by file, the GApps variant is the only difference
