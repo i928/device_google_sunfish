@@ -733,6 +733,13 @@ PRODUCT_COPY_FILES += $(foreach z,$(KSU_AUTOINSTALL_ZIPS),\
 
 # Boot scripts (not modules): copied to /data/adb/service.d, which KernelSU runs
 # on every boot.
+# Optional KernelSU allowlist snapshot: pre-grants root to the apps it lists
+# (com.android.shell, i.e. adb) on a wiped device. Local content -- do not ship
+# it in a build meant for anyone else.
+KSU_AUTOINSTALL_ALLOWLIST := $(wildcard device/google/sunfish/ksu-autoinstall/*.allowlist)
+PRODUCT_COPY_FILES += $(foreach a,$(KSU_AUTOINSTALL_ALLOWLIST),\
+    $(a):$(TARGET_COPY_OUT_PRODUCT)/etc/ksu-autoinstall/$(notdir $(a)))
+
 KSU_AUTOINSTALL_SCRIPTS := $(wildcard device/google/sunfish/ksu-autoinstall/scripts/*.sh)
 PRODUCT_COPY_FILES += $(foreach s,$(KSU_AUTOINSTALL_SCRIPTS),\
     $(s):$(TARGET_COPY_OUT_PRODUCT)/etc/ksu-autoinstall/scripts/$(notdir $(s)))

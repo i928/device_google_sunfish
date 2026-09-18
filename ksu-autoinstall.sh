@@ -59,6 +59,33 @@ done
 
 mkdir -p "$STATE" || exit 0
 
+# Optional: pre-grant root to the apps in a snapshot of KernelSU's allowlist,
+# so a wiped device does not need the grant tapped in by hand. The file is the
+# ROM's own snapshot of /data/adb/ksu/.allowlist (magic "USK", per-uid entries);
+# ship it only in builds where that is wanted -- it grants root to whatever is
+# in it, com.android.shell included, which means anyone with adb access.
+#
+# Seeded only when nothing has been granted yet, so a later grant made through
+# the manager is never clobbered. ksud reads the allowlist at startup, so this
+# takes effect on the next boot -- which is the boot this script triggers
+# anyway after installing modules.
+SEED_ALLOWLIST="$SRC/shell-root.allowlist"
+if [ -f "$SEED_ALLOWLIST" ] && [ ! -f "$STATE/allowlist.done" ]; then
+	if ! grep -qa "com.android.shell" /data/adb/ksu/.allowlist 2>/dev/null; then
+		mkdir -p /data/adb/ksu
+		if cp "$SEED_ALLOWLIST" /data/adb/ksu/.allowlist &&
+			chmod 644 /data/adb/ksu/.allowlist; then
+			: > "$STATE/allowlist.done"
+			echo "$(date) seeded KSU allowlist from $SEED_ALLOWLIST" >> "$LOG"
+		else
+			echo "$(date) FAILED to seed KSU allowlist" >> "$LOG"
+		fi
+	else
+		# Already granted: leave it alone and stop reconsidering it.
+		: > "$STATE/allowlist.done"
+	fi
+fi
+
 installed=0
 # Several passes: installing a metamodule (Hybrid-Mount) resets sys.boot_completed
 # to 0, so every install queued behind it fails with "Android is Booting!" until
