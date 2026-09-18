@@ -1,53 +1,43 @@
-# Put the KSU autoinstall script where KernelSU will run it.
+# Seed ksud, and run the KSU autoinstall script once boot completes.
 #
-# init deliberately does NOT exec anything here. A service like
-#   service ksu_autoinstall /system/bin/sh /system_ext/bin/ksu-autoinstall.sh
-# fails with "File /system/bin/sh (labeled u:object_r:shell_exec:s0) has
-# incorrect label or no domain transition from u:r:init:s0", because init may
-# not exec a shell without a domain of its own. `copy` is a built-in init
-# command, so it needs no exec and no new sepolicy.
+# Seeding ksud: on a wiped device /data/adb/ksud does not exist until the
+# manager app is opened, and without it KernelSU is completely inert:
+#   init: Command 'exec u:r:ksu:s0 root -- /data/adb/ksud post-fs-data'
+#         failed: Cannot find '/data/adb/ksud'
+# ...and the same for `services` and `boot-completed`. `copy` is a built-in init
+# command, so this needs no exec and no new sepolicy. It is the same binary the
+# manager would copy, shipped in this ROM, so it matches this kernel. Rewritten
+# every boot, which also repairs a deleted or truncated ksud.
 #
-# KernelSU runs /data/adb/service.d in its own context (u:r:ksu:s0), the same
-# context ksud itself runs in, which is what `ksud module install` needs.
-#
-# NOT boot-completed.d: this ksud has no such directory (its strings carry only
-# post-fs-data.d and service.d; boot-completed is just a CLI subcommand). A
-# boot-completed.d on a device is run by some module, so it works only once
-# modules are installed -- useless for the wiped device this exists for.
-#
-# service.d runs before boot completes and `ksud module install` refuses until
-# it does, so the script detaches itself and waits for sys.boot_completed.
-#
-# system_ext, not vendor: a vendor rc runs as vendor_init and cannot touch
-# /data/adb.
-#
-# The copy happens on every boot so an updated ROM refreshes the script; the
-# script itself is idempotent through its markers.
-
+# KSU's own post-fs-data exec (init.rc) runs before this action, so on the very
+# first boot after a wipe that stage is still skipped -- harmless, as there are
+# no modules to mount yet. `services` and `boot-completed` come later and do
+# find it.
 on post-fs-data
     mkdir /data/adb 0700 root root
-
-    # Seed ksud. On a wiped device /data/adb/ksud does not exist until the
-    # manager app is opened, and without it KernelSU is completely inert:
-    #   init: Command 'exec u:r:ksu:s0 root -- /data/adb/ksud post-fs-data'
-    #         failed: Cannot find '/data/adb/ksud'
-    # ...and the same for `services` and `boot-completed`. Since boot-completed
-    # is what runs boot-completed.d, the script below could never run either, so
-    # seeding from inside it was circular. init must do it.
-    #
-    # This is the same binary the manager would copy, shipped in this ROM, so it
-    # matches this kernel. It is rewritten every boot, which also repairs a
-    # deleted or truncated ksud.
-    #
-    # KSU's own post-fs-data exec (init.rc) runs before this one, so on the very
-    # first boot after a wipe that stage is still skipped -- harmless, as there
-    # are no modules to mount yet. `services` and `boot-completed` come later and
-    # do find it.
     copy /product/app/KernelSUNext/lib/arm64/libksud.so /data/adb/ksud
     chmod 0755 /data/adb/ksud
     chown root root /data/adb/ksud
 
-    mkdir /data/adb/service.d 0700 root root
-    copy /system_ext/bin/ksu-autoinstall.sh /data/adb/service.d/ksu-autoinstall.sh
-    chmod 0700 /data/adb/service.d/ksu-autoinstall.sh
-    chown root root /data/adb/service.d/ksu-autoinstall.sh
+# Run the script as an init service rather than through one of KernelSU's script
+# directories. This ksud runs NEITHER /data/adb/service.d (its two mentions are
+# only variables in the util_functions.sh snippet it hands to module installers)
+# NOR boot-completed.d; a boot-completed.d that works on a configured device is
+# being run by one of the installed modules. post-fs-data.d it does run, but
+# init copies into /data too late for that stage on a wiped device -- exactly
+# the boot this exists for.
+#
+# `seclabel u:r:su:s0` is what makes init able to exec a shell script at all:
+# without it, init refuses with "has incorrect label or no domain transition
+# from u:r:init:s0". This is the same pattern init.debuglog.rc already uses on
+# this device. PRODUCT_COPY_FILES into bin/ installs it 0755, so no exec bit
+# handling is needed.
+service ksu_autoinstall /system_ext/bin/ksu-autoinstall.sh
+    user root
+    group root
+    seclabel u:r:su:s0
+    disabled
+    oneshot
+
+on property:sys.boot_completed=1
+    start ksu_autoinstall
