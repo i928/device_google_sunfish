@@ -678,6 +678,10 @@ PRODUCT_VENDOR_PROPERTIES += ro.soc.model=SM7150
 # run.sh, copied in by publish.sh). A freshly synced tree has none of it and
 # must still build, so every reference below is a $(wildcard) and simply
 # yields nothing when the directory is absent.
+# SUNFISH_RELEASE=1 marks a build meant for other people: it leaves out
+# everything personal (see the ksu-autoinstall block below for the rest).
+SUNFISH_RELEASE ?= 0
+
 ifeq ($(BISECT_ONLY_KSU),1)
 # Fast-iteration mode for kernel/KSU bisect testing (export BISECT_ONLY_KSU=1
 # before lunch/mka): ship only KernelSUNext, skipping the other ~19 prebuilt
@@ -685,6 +689,20 @@ ifeq ($(BISECT_ONLY_KSU),1)
 # build -- don't use this for "does everything still work" testing.
 USER_APPS_BP := $(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/KernelSUNext.apk)
 PRODUCT_PACKAGES += $(foreach apk,$(USER_APPS_BP),$(basename $(notdir $(apk))))
+else ifeq ($(SUNFISH_RELEASE),1)
+# Named list, not a wildcard: the rest of extra-apps (LINE, ReVanced, messenger,
+# kasa, Nest...) is personal. Gboard ships as an .apks app set and needs its
+# privapp-permissions xml, or it crashes on launch.
+RELEASE_APPS := AuroraStore KernelSUNext
+RELEASE_APP_SETS := Gboard
+USER_APPS_BP := $(foreach a,$(RELEASE_APPS),\
+    $(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/$(a).apk))
+PRODUCT_PACKAGES += $(foreach apk,$(USER_APPS_BP),$(basename $(notdir $(apk))))
+USER_APP_SETS_BP := $(foreach a,$(RELEASE_APP_SETS),\
+    $(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/$(a).apks))
+PRODUCT_PACKAGES += $(foreach apkset,$(USER_APP_SETS_BP),$(basename $(notdir $(apkset))))
+USER_APP_PERMS_BP := $(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/privapp-permissions-gboard.xml)
+PRODUCT_PACKAGES += $(foreach xml,$(USER_APP_PERMS_BP),$(notdir $(xml)))
 else
 USER_APPS_BP := $(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/*.apk)
 PRODUCT_PACKAGES += $(foreach apk,$(USER_APPS_BP),$(basename $(notdir $(apk))))
@@ -727,7 +745,13 @@ endif
 # reinstall its modules with no transfers. ksu-autoinstall/ is untracked local
 # content like prebuilts/extra-apps above -- $(wildcard) yields nothing when the
 # directory is absent, so a freshly synced tree still builds.
+# A release build takes its zips from the release/ subdirectory instead, which
+# the non-recursive wildcard above never picks up, so the two sets cannot mix.
+ifeq ($(SUNFISH_RELEASE),1)
+KSU_AUTOINSTALL_ZIPS := $(wildcard device/google/sunfish/ksu-autoinstall/release/*.zip)
+else
 KSU_AUTOINSTALL_ZIPS := $(wildcard device/google/sunfish/ksu-autoinstall/*.zip)
+endif
 PRODUCT_COPY_FILES += $(foreach z,$(KSU_AUTOINSTALL_ZIPS),\
     $(z):$(TARGET_COPY_OUT_PRODUCT)/etc/ksu-autoinstall/$(notdir $(z)))
 
@@ -736,11 +760,18 @@ PRODUCT_COPY_FILES += $(foreach z,$(KSU_AUTOINSTALL_ZIPS),\
 # Optional KernelSU allowlist snapshot: pre-grants root to the apps it lists
 # (com.android.shell, i.e. adb) on a wiped device. Local content -- do not ship
 # it in a build meant for anyone else.
+# Personal builds only: this grants root to everything it lists, com.android.shell
+# included, i.e. to anyone with adb access to the device.
+ifneq ($(SUNFISH_RELEASE),1)
 KSU_AUTOINSTALL_ALLOWLIST := $(wildcard device/google/sunfish/ksu-autoinstall/*.allowlist)
+endif
 PRODUCT_COPY_FILES += $(foreach a,$(KSU_AUTOINSTALL_ALLOWLIST),\
     $(a):$(TARGET_COPY_OUT_PRODUCT)/etc/ksu-autoinstall/$(notdir $(a)))
 
+# Personal builds only: ksu_script.sh hides this user's preinstalled YouTube apps.
+ifneq ($(SUNFISH_RELEASE),1)
 KSU_AUTOINSTALL_SCRIPTS := $(wildcard device/google/sunfish/ksu-autoinstall/scripts/*.sh)
+endif
 PRODUCT_COPY_FILES += $(foreach s,$(KSU_AUTOINSTALL_SCRIPTS),\
     $(s):$(TARGET_COPY_OUT_PRODUCT)/etc/ksu-autoinstall/scripts/$(notdir $(s)))
 
