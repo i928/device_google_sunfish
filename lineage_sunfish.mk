@@ -4,6 +4,21 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+# Keep our own certified BuildFingerprint (set below) instead of the beta one.
+# vendor/lineage/config/evolution.mk overrides BuildFingerprint with
+# google/mustang_beta/mustang:CANARY/... for every device that is not a
+# currently-supported Pixel, to fix RCS/Wallet. A CANARY build is a beta and is
+# not in Google's certified set, so GMS registers the device as uncertified at
+# first boot and refuses the Google sign-in during setup.
+#
+# This MUST be set before the inherit below: evolution.mk reads it with ?= and
+# immediately evaluates the ifeq, so a later assignment has no effect.
+#
+# If RCS or Wallet regress because of this, do not revert -- instead give
+# evolution.mk a certified STABLE Pixel fingerprint rather than a beta one.
+# See ~/playstore-certified-scope.md.
+TARGET_ENABLE_FP_OVERRIDE := false
+
 # Inherit some common Lineage stuff.
 $(call inherit-product, vendor/lineage/config/common_full_phone.mk)
 

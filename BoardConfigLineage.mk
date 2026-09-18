@@ -87,6 +87,32 @@ endif
 # Verified Boot
 ifneq ($(WITH_AVB),true)
 BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --flags 3
+else
+# Bootloader relocking against our own AVB key (yellow boot state).
+# Uncomment the line at the bottom of this block to build a vbmeta the
+# bootloader actually verifies.
+#
+#   --flags 3  hashtree (dm-verity) disabled + verification disabled  <- default, above
+#   --flags 1  hashtree (dm-verity) disabled, verification ENABLED    <- what relocking needs
+#
+# WITH_AVB=true on its own is NOT enough, and is in fact worse than the
+# default: with no --flags the vbmeta gets flags 0, meaning dm-verity is
+# enabled -- while system/vendor/product are built --no_hashtree
+# (BoardConfig-common.mk), so there is no hashtree to verify and the device
+# does not boot.
+#
+# The key side is already wired up: AVB_CUSTOM_KEY_PATH/ALGORITHM come from
+# vendor/evolution-priv/keys/keys.mk (avb.pk8, SHA256_RSA4096), and
+# avb_custom_key.bin in that same repo is what gets flashed to the bootloader
+# (fastboot flash avb_custom_key) before `fastboot flashing lock`.
+#
+# Trade-off before enabling: a locked bootloader refuses `fastboot boot`,
+# which is how every test kernel is booted here -- each KSU kernel would have
+# to be signed with this key and flashed to a slot instead. Recovery from a
+# bad signed image also needs OEM unlocking to still be toggled on.
+#
+# Source of the flags value: lopro104/android_device_google_sunfish e4ab622.
+#BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --flags 1
 endif
 
 include vendor/google/sunfish/BoardConfigVendor.mk
