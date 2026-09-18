@@ -24,8 +24,10 @@ LOG=/data/adb/ksu-autoinstall.log
 # Reboot once after installing, so the modules are actually active. Off by
 # default: boot_completed can fire while the user is still in setup wizard, and a
 # surprise reboot there is worse than one manual reboot.
-#   setprop persist.sunfish.ksu_autoinstall.reboot 1   (persists across boots)
-REBOOT=$(getprop persist.sunfish.ksu_autoinstall.reboot 0)
+#   setprop persist.sunfish.ksu_ai_reboot 1   (persists across boots)
+# Name kept under 31 chars: the legacy property getter truncates longer names, so
+# `getprop persist.sunfish.ksu_autoinstall.reboot` silently read nothing.
+REBOOT=$(getprop persist.sunfish.ksu_ai_reboot 0)
 
 [ -d "$SRC" ] || exit 0
 
@@ -61,19 +63,6 @@ for zip in "$SRC"/*.zip; do
 		failed=$((failed + 1))
 	fi
 done
-
-# ksud may refuse to run from the init domain (SELinux). KernelSU runs anything
-# in boot-completed.d itself, in its own root context, so hand the work over
-# there and let the next boot do it. /data/adb does not survive a wipe, which is
-# why this is a fallback and not the primary path.
-if [ "${failed:-0}" -gt 0 ] && [ "$installed" -eq 0 ]; then
-	if [ -d /data/adb/boot-completed.d ] &&
-		[ ! -f /data/adb/boot-completed.d/ksu-autoinstall.sh ]; then
-		cp "$0" /data/adb/boot-completed.d/ksu-autoinstall.sh &&
-			chmod 755 /data/adb/boot-completed.d/ksu-autoinstall.sh &&
-			echo "$(date) installs failed from init; handed off to boot-completed.d" >> "$LOG"
-	fi
-fi
 
 # Boot scripts shipped alongside the zips. These are not modules: they belong in
 # /data/adb/service.d, which KernelSU runs on EVERY boot (late_start), so they

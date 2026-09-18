@@ -1,17 +1,26 @@
-# Install the KernelSU module zips shipped in /product/etc/ksu-autoinstall, once
-# each, after boot completes. See ksu-autoinstall.sh for why /product.
+# Put the KSU autoinstall script where KernelSU will run it.
+#
+# init deliberately does NOT exec anything here. A service like
+#   service ksu_autoinstall /system/bin/sh /system_ext/bin/ksu-autoinstall.sh
+# fails with "File /system/bin/sh (labeled u:object_r:shell_exec:s0) has
+# incorrect label or no domain transition from u:r:init:s0", because init may
+# not exec a shell without a domain of its own. `copy` is a built-in init
+# command, so it needs no exec and no new sepolicy.
+#
+# KernelSU runs everything in /data/adb/service.d at its `services` stage, in
+# its own context (u:r:ksu:s0) -- the same context ksud itself runs in, which is
+# exactly what `ksud module install` needs. That stage comes after post-fs-data,
+# so the script runs on this same boot.
 #
 # system_ext, not vendor: a vendor rc runs as vendor_init and cannot touch
-# /data/adb, which is where ksud keeps modules.
+# /data/adb.
 #
-# Invoked through sh so the script does not need an exec bit or its own
-# file_contexts entry -- PRODUCT_COPY_FILES installs it 0644.
+# The copy happens on every boot so an updated ROM refreshes the script; the
+# script itself is idempotent through its markers.
 
-service ksu_autoinstall /system/bin/sh /system_ext/bin/ksu-autoinstall.sh
-    user root
-    group root root
-    disabled
-    oneshot
-
-on property:sys.boot_completed=1
-    start ksu_autoinstall
+on post-fs-data
+    mkdir /data/adb 0700 root root
+    mkdir /data/adb/service.d 0700 root root
+    copy /system_ext/bin/ksu-autoinstall.sh /data/adb/service.d/ksu-autoinstall.sh
+    chmod 0700 /data/adb/service.d/ksu-autoinstall.sh
+    chown root root /data/adb/service.d/ksu-autoinstall.sh

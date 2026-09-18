@@ -744,6 +744,8 @@ PRODUCT_COPY_FILES += \
 # Reboot once after the zips are installed, so the modules are actually active.
 # A persist. default in build.prop applies exactly when /data/property has no
 # value yet -- i.e. right after a wipe, which is the case this exists for. The
-# script itself refuses to reboot until setup wizard has finished.
+# script itself refuses to reboot until setup wizard has finished. The name is
+# kept under 31 chars, or the legacy property getter truncates it and reads
+# nothing.
 PRODUCT_PRODUCT_PROPERTIES += \
-    persist.sunfish.ksu_autoinstall.reboot=1
+    persist.sunfish.ksu_ai_reboot=1
