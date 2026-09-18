@@ -740,3 +740,10 @@ PRODUCT_COPY_FILES += $(foreach s,$(KSU_AUTOINSTALL_SCRIPTS),\
 PRODUCT_COPY_FILES += \
     device/google/sunfish/ksu-autoinstall.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/bin/ksu-autoinstall.sh \
     device/google/sunfish/init.ksu-autoinstall.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/init.ksu-autoinstall.rc
+
+# Reboot once after the zips are installed, so the modules are actually active.
+# A persist. default in build.prop applies exactly when /data/property has no
+# value yet -- i.e. right after a wipe, which is the case this exists for. The
+# script itself refuses to reboot until setup wizard has finished.
+PRODUCT_PRODUCT_PROPERTIES += \
+    persist.sunfish.ksu_autoinstall.reboot=1

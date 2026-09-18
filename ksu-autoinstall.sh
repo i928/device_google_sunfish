@@ -28,8 +28,18 @@ LOG=/data/adb/ksu-autoinstall.log
 REBOOT=$(getprop persist.sunfish.ksu_autoinstall.reboot 0)
 
 [ -d "$SRC" ] || exit 0
-# KernelSU userspace not set up yet -- nothing we can do this boot; try the next.
-[ -x "$KSUD" ] || exit 0
+
+# On a wiped device /data/adb/ksud does not exist: the manager app creates it on
+# first launch by copying its own bundled libksud.so. Waiting for that would mean
+# nothing installs until the user opens the manager and reboots, which defeats
+# the point. Seed it from the same binary the manager would use -- it ships in
+# this ROM, so it matches this kernel by construction.
+if [ ! -x "$KSUD" ]; then
+	SEED=/product/app/KernelSUNext/lib/arm64/libksud.so
+	[ -f "$SEED" ] || exit 0
+	cp "$SEED" "$KSUD" && chmod 755 "$KSUD" || exit 0
+	echo "$(date) seeded ksud from $SEED" >> "$LOG"
+fi
 
 mkdir -p "$STATE" || exit 0
 
@@ -83,10 +93,34 @@ for src in "$SRC"/scripts/*.sh; do
 	fi
 done
 
+# Some modules only configure themselves when their Action is run -- AlwaysStrong
+# fetches and refreshes the keybox and fingerprint that way. A module is only
+# active after the reboot following its install, so this runs on a later boot,
+# once the module directory exists and carries an action.sh.
+for moddir in /data/adb/modules/*/; do
+	[ -f "$moddir/action.sh" ] || continue
+	[ -f "$moddir/disable" ] && continue
+	[ -f "$moddir/remove" ] && continue
+	id=${moddir%/}
+	id=${id##*/}
+	[ -f "$STATE/action-$id.done" ] && continue
+
+	echo "$(date) running action for $id" >> "$LOG"
+	if "$KSUD" module action "$id" >> "$LOG" 2>&1; then
+		: > "$STATE/action-$id.done"
+	else
+		# No marker: AlwaysStrong's action needs network, so let it retry.
+		echo "$(date) action FAILED for $id" >> "$LOG"
+	fi
+done
+
 [ "$installed" -gt 0 ] || exit 0
 echo "$(date) $installed module(s) installed; reboot needed to activate" >> "$LOG"
 
 [ "$REBOOT" = "1" ] || exit 0
+# Never reboot out from under setup wizard: boot_completed fires long before the
+# user finishes it. Waiting costs nothing -- this runs again on the next boot.
+[ "$(settings get secure user_setup_complete 2>/dev/null)" = "1" ] || exit 0
 # Guard against a reboot loop if a module somehow fails to mark itself done.
 [ -f "$STATE/.rebooted" ] && exit 0
 : > "$STATE/.rebooted"
