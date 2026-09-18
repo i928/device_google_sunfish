@@ -16,6 +16,19 @@
 # modules that load through it (20-*). Renaming a zip makes it install again,
 # since the marker is keyed on the filename.
 
+# KernelSU runs this from service.d, which is part of the boot sequence, while
+# the work here waits minutes for boot to complete. Detach first so nothing
+# waits on it -- and fully, not just with &: a child holding the stage's stdout
+# open would keep that stage from finishing.
+if [ "$1" != "--detached" ]; then
+	if command -v setsid >/dev/null 2>&1; then
+		setsid "$0" --detached </dev/null >/dev/null 2>&1 &
+	else
+		"$0" --detached </dev/null >/dev/null 2>&1 &
+	fi
+	exit 0
+fi
+
 SRC=/product/etc/ksu-autoinstall
 STATE=/data/adb/.ksu-autoinstall
 KSUD=/data/adb/ksud
@@ -31,10 +44,9 @@ REBOOT=$(getprop persist.sunfish.ksu_ai_reboot 0)
 
 [ -d "$SRC" ] || exit 0
 
-# Older builds of this ROM put this script in service.d, where it runs before
-# boot completes and can only log failures. init no longer copies it there, but
-# an upgraded device still has the old copy.
-rm -f /data/adb/service.d/ksu-autoinstall.sh
+# Older builds of this ROM put a copy in boot-completed.d, which this ksud never
+# runs (only a module ever does); drop it so it cannot confuse the picture.
+rm -f /data/adb/boot-completed.d/ksu-autoinstall.sh
 
 # On a wiped device /data/adb/ksud does not exist: the manager app creates it on
 # first launch by copying its own bundled libksud.so. Waiting for that would mean
