@@ -21,6 +21,27 @@
 
 on post-fs-data
     mkdir /data/adb 0700 root root
+
+    # Seed ksud. On a wiped device /data/adb/ksud does not exist until the
+    # manager app is opened, and without it KernelSU is completely inert:
+    #   init: Command 'exec u:r:ksu:s0 root -- /data/adb/ksud post-fs-data'
+    #         failed: Cannot find '/data/adb/ksud'
+    # ...and the same for `services` and `boot-completed`. Since boot-completed
+    # is what runs boot-completed.d, the script below could never run either, so
+    # seeding from inside it was circular. init must do it.
+    #
+    # This is the same binary the manager would copy, shipped in this ROM, so it
+    # matches this kernel. It is rewritten every boot, which also repairs a
+    # deleted or truncated ksud.
+    #
+    # KSU's own post-fs-data exec (init.rc) runs before this one, so on the very
+    # first boot after a wipe that stage is still skipped -- harmless, as there
+    # are no modules to mount yet. `services` and `boot-completed` come later and
+    # do find it.
+    copy /product/app/KernelSUNext/lib/arm64/libksud.so /data/adb/ksud
+    chmod 0755 /data/adb/ksud
+    chown root root /data/adb/ksud
+
     mkdir /data/adb/boot-completed.d 0700 root root
     copy /system_ext/bin/ksu-autoinstall.sh /data/adb/boot-completed.d/ksu-autoinstall.sh
     chmod 0700 /data/adb/boot-completed.d/ksu-autoinstall.sh
