@@ -1,0 +1,24 @@
+# What a release build ships (SUNFISH_RELEASE=1). Personal builds ignore this
+# file and ship everything present.
+#
+# One entry per line, matched as a SUBSTRING of the filename, so version bumps
+# do not need edits here: "AlwaysStrong" matches 20-AlwaysStrong-v1.0.4.zip.
+# Applies to ksu-autoinstall/ (module zips, boot scripts, allowlist) and to
+# prebuilts/extra-apps/prebuilt/ (apks, app sets, privapp permission xml).
+# Anything not listed is left out, which is how the personal-only pieces
+# (shell-root.allowlist, ksu_script.sh) stay out of a published build.
+
+# KernelSU modules -- everything except errlog, which is a debug capture tool
+ReZygisk
+AlwaysStrong
+HMA-OSS
+Vector
+bindhosts
+susfs
+Hybrid-Mount
+
+# Apps
+AuroraStore
+Gboard
+privapp-permissions-gboard.xml
+KernelSUNext
