@@ -720,3 +720,17 @@ endif
 
 # Update soong config namespace
 -include vendor/google/build/soong/soong_config_namespace/qcril_oemhook.mk
+
+# KernelSU module zips shipped with the ROM, installed once each by
+# init.ksu-autoinstall.rc after boot completes. The point is a wiped device:
+# fastboot -w erases /data and /sdcard, but /product survives, so the phone can
+# reinstall its modules with no transfers. ksu-autoinstall/ is untracked local
+# content like prebuilts/extra-apps above -- $(wildcard) yields nothing when the
+# directory is absent, so a freshly synced tree still builds.
+KSU_AUTOINSTALL_ZIPS := $(wildcard device/google/sunfish/ksu-autoinstall/*.zip)
+PRODUCT_COPY_FILES += $(foreach z,$(KSU_AUTOINSTALL_ZIPS),\
+    $(z):$(TARGET_COPY_OUT_PRODUCT)/etc/ksu-autoinstall/$(notdir $(z)))
+
+PRODUCT_COPY_FILES += \
+    device/google/sunfish/ksu-autoinstall.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/bin/ksu-autoinstall.sh \
+    device/google/sunfish/init.ksu-autoinstall.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/init.ksu-autoinstall.rc

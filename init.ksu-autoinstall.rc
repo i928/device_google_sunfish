@@ -1,0 +1,17 @@
+# Install the KernelSU module zips shipped in /product/etc/ksu-autoinstall, once
+# each, after boot completes. See ksu-autoinstall.sh for why /product.
+#
+# system_ext, not vendor: a vendor rc runs as vendor_init and cannot touch
+# /data/adb, which is where ksud keeps modules.
+#
+# Invoked through sh so the script does not need an exec bit or its own
+# file_contexts entry -- PRODUCT_COPY_FILES installs it 0644.
+
+service ksu_autoinstall /system/bin/sh /system_ext/bin/ksu-autoinstall.sh
+    user root
+    group root root
+    disabled
+    oneshot
+
+on property:sys.boot_completed=1
+    start ksu_autoinstall
