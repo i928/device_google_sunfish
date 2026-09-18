@@ -43,6 +43,15 @@ if [ ! -x "$KSUD" ]; then
 	echo "$(date) seeded ksud from $SEED" >> "$LOG"
 fi
 
+# `ksud module install` refuses with "Android is Booting!" until boot completes.
+# KernelSU runs this from boot-completed.d, so the prop is normally already set;
+# wait anyway, cheaply, in case the stage ever changes.
+i=0
+while [ "$(getprop sys.boot_completed)" != "1" ] && [ "$i" -lt 60 ]; do
+	sleep 2
+	i=$((i + 1))
+done
+
 mkdir -p "$STATE" || exit 0
 
 installed=0

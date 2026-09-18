@@ -7,10 +7,11 @@
 # not exec a shell without a domain of its own. `copy` is a built-in init
 # command, so it needs no exec and no new sepolicy.
 #
-# KernelSU runs everything in /data/adb/service.d at its `services` stage, in
-# its own context (u:r:ksu:s0) -- the same context ksud itself runs in, which is
-# exactly what `ksud module install` needs. That stage comes after post-fs-data,
-# so the script runs on this same boot.
+# KernelSU runs everything in /data/adb/boot-completed.d in its own context
+# (u:r:ksu:s0) -- the same context ksud itself runs in, which is what
+# `ksud module install` needs. It must be that stage and not service.d:
+# `ksud module install` refuses with "Android is Booting!" until boot is
+# complete, and the services stage runs well before that.
 #
 # system_ext, not vendor: a vendor rc runs as vendor_init and cannot touch
 # /data/adb.
@@ -20,7 +21,7 @@
 
 on post-fs-data
     mkdir /data/adb 0700 root root
-    mkdir /data/adb/service.d 0700 root root
-    copy /system_ext/bin/ksu-autoinstall.sh /data/adb/service.d/ksu-autoinstall.sh
-    chmod 0700 /data/adb/service.d/ksu-autoinstall.sh
-    chown root root /data/adb/service.d/ksu-autoinstall.sh
+    mkdir /data/adb/boot-completed.d 0700 root root
+    copy /system_ext/bin/ksu-autoinstall.sh /data/adb/boot-completed.d/ksu-autoinstall.sh
+    chmod 0700 /data/adb/boot-completed.d/ksu-autoinstall.sh
+    chown root root /data/adb/boot-completed.d/ksu-autoinstall.sh
