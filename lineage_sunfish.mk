@@ -57,8 +57,14 @@ ifeq ($(WITH_GMS),false)
 PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST += \
     system/apex/com.google.android.permission.apex
 else
-# Gapps
-TARGET_USES_MINI_GAPPS := true
+# Gapps: full, not mini. lopro's build signs in to Play on a freshly formatted,
+# unregistered, explicitly uncertified device, and ours does not; after diffing
+# the two device trees file by file, the GApps variant is the only difference
+# left that could plausibly matter. Full adds 34 packages over mini (Photos,
+# Recorder, SafetyHub, Tycho, GooglePackageInstaller, DevicePolicy, Gemini...).
+# It does NOT add Gmail/Maps/Messages, so the prebuilts in extra-apps for those
+# are not duplicated by it.
+TARGET_USES_MINI_GAPPS := false
 
 PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST += \
     system/app/GoogleExtShared/GoogleExtShared.apk \
