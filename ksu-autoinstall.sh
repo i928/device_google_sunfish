@@ -31,6 +31,11 @@ REBOOT=$(getprop persist.sunfish.ksu_ai_reboot 0)
 
 [ -d "$SRC" ] || exit 0
 
+# Older builds of this ROM put this script in service.d, where it runs before
+# boot completes and can only log failures. init no longer copies it there, but
+# an upgraded device still has the old copy.
+rm -f /data/adb/service.d/ksu-autoinstall.sh
+
 # On a wiped device /data/adb/ksud does not exist: the manager app creates it on
 # first launch by copying its own bundled libksud.so. Waiting for that would mean
 # nothing installs until the user opens the manager and reboots, which defeats
@@ -55,22 +60,38 @@ done
 mkdir -p "$STATE" || exit 0
 
 installed=0
-for zip in "$SRC"/*.zip; do
-	[ -f "$zip" ] || continue
-	name=${zip##*/}
-	[ -f "$STATE/$name.done" ] && continue
+# Several passes: installing a metamodule (Hybrid-Mount) resets sys.boot_completed
+# to 0, so every install queued behind it fails with "Android is Booting!" until
+# the prop comes back. Filename order puts the metamodule last (30-), and these
+# passes recover anything that still lost the race.
+pass_no=1
+while [ "$pass_no" -le 3 ]; do
+	pending=0
+	for zip in "$SRC"/*.zip; do
+		[ -f "$zip" ] || continue
+		name=${zip##*/}
+		[ -f "$STATE/$name.done" ] && continue
 
-	echo "$(date) installing $name" >> "$LOG"
-	if "$KSUD" module install "$zip" >> "$LOG" 2>&1; then
-		: > "$STATE/$name.done"
-		installed=$((installed + 1))
-		echo "$(date) installed $name" >> "$LOG"
-	else
-		# No marker: a failure retries on the next boot rather than being
-		# silently skipped forever.
-		echo "$(date) FAILED $name" >> "$LOG"
-		failed=$((failed + 1))
-	fi
+		# The prop may have been reset by a metamodule install in this pass.
+		i=0
+		while [ "$(getprop sys.boot_completed)" != "1" ] && [ "$i" -lt 30 ]; do
+			sleep 2
+			i=$((i + 1))
+		done
+
+		echo "$(date) installing $name (pass $pass_no)" >> "$LOG"
+		if "$KSUD" module install "$zip" >> "$LOG" 2>&1; then
+			: > "$STATE/$name.done"
+			installed=$((installed + 1))
+			echo "$(date) installed $name" >> "$LOG"
+		else
+			# No marker: retried in the next pass, then on the next boot.
+			echo "$(date) FAILED $name (pass $pass_no)" >> "$LOG"
+			pending=$((pending + 1))
+		fi
+	done
+	[ "$pending" -eq 0 ] && break
+	pass_no=$((pass_no + 1))
 done
 
 # Boot scripts shipped alongside the zips. These are not modules: they belong in
