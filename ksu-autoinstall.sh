@@ -10,6 +10,11 @@
 # Each zip is installed at most once; the marker files live in /data/adb, so a
 # later wipe deliberately makes them install again. Adding a new zip to the ROM
 # installs only that one, since markers are per-file.
+#
+# Install order is filename order, which is why the zips carry numeric prefixes:
+# the Zygisk implementation (10-ReZygisk) has to be installed before the Zygisk
+# modules that load through it (20-*). Renaming a zip makes it install again,
+# since the marker is keyed on the filename.
 
 SRC=/product/etc/ksu-autoinstall
 STATE=/data/adb/.ksu-autoinstall
