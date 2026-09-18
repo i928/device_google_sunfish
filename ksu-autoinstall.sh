@@ -65,6 +65,24 @@ if [ "${failed:-0}" -gt 0 ] && [ "$installed" -eq 0 ]; then
 	fi
 fi
 
+# Boot scripts shipped alongside the zips. These are not modules: they belong in
+# /data/adb/service.d, which KernelSU runs on EVERY boot (late_start), so they
+# are copied into place once and then run themselves from there. A wipe takes
+# them with it, and this puts them back.
+for src in "$SRC"/scripts/*.sh; do
+	[ -f "$src" ] || continue
+	name=${src##*/}
+	[ -f "$STATE/script-$name.done" ] && continue
+
+	mkdir -p /data/adb/service.d || continue
+	if cp "$src" "/data/adb/service.d/$name" && chmod 755 "/data/adb/service.d/$name"; then
+		: > "$STATE/script-$name.done"
+		echo "$(date) installed boot script $name" >> "$LOG"
+	else
+		echo "$(date) FAILED to install boot script $name" >> "$LOG"
+	fi
+done
+
 [ "$installed" -gt 0 ] || exit 0
 echo "$(date) $installed module(s) installed; reboot needed to activate" >> "$LOG"
 

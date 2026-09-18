@@ -731,6 +731,12 @@ KSU_AUTOINSTALL_ZIPS := $(wildcard device/google/sunfish/ksu-autoinstall/*.zip)
 PRODUCT_COPY_FILES += $(foreach z,$(KSU_AUTOINSTALL_ZIPS),\
     $(z):$(TARGET_COPY_OUT_PRODUCT)/etc/ksu-autoinstall/$(notdir $(z)))
 
+# Boot scripts (not modules): copied to /data/adb/service.d, which KernelSU runs
+# on every boot.
+KSU_AUTOINSTALL_SCRIPTS := $(wildcard device/google/sunfish/ksu-autoinstall/scripts/*.sh)
+PRODUCT_COPY_FILES += $(foreach s,$(KSU_AUTOINSTALL_SCRIPTS),\
+    $(s):$(TARGET_COPY_OUT_PRODUCT)/etc/ksu-autoinstall/scripts/$(notdir $(s)))
+
 PRODUCT_COPY_FILES += \
     device/google/sunfish/ksu-autoinstall.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/bin/ksu-autoinstall.sh \
     device/google/sunfish/init.ksu-autoinstall.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/init.ksu-autoinstall.rc
