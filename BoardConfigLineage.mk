@@ -133,12 +133,22 @@ BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true
 # Same condition as the libksud.so PRODUCT_COPY_FILES in device.mk: without
 # the app there is no copied file, so no rule may depend on it. When absent,
 # libksud_chmod_stamp stays empty and the droidcore line below is a no-op.
+# SUNFISH_KSU is declared in device.mk, which board config never parses -- board
+# and product config are separate make contexts -- so the default is repeated
+# here. Without it a SUNFISH_KSU=false build fails: device.mk drops the
+# libksud.so copy while this rule still demands the file.
+#   ninja: 'out/.../app/KernelSUNext/lib/arm64/libksud.so', needed by
+#   'out/libksud_chmod.stamp', missing and no known rule to make it
+SUNFISH_KSU ?= true
+
+ifeq ($(SUNFISH_KSU),true)
 ifneq ($(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/KernelSUNext.apk),)
 libksud_chmod_stamp := $(OUT_DIR)/libksud_chmod.stamp
 $(libksud_chmod_stamp): $(PRODUCT_OUT)/$(TARGET_COPY_OUT_PRODUCT)/app/KernelSUNext/lib/arm64/libksud.so
 	chmod 755 $<
 	touch $@
 endif
+endif # SUNFISH_KSU
 droidcore: $(libksud_chmod_stamp)
 
 # if your ROM tree uses system_ext:
