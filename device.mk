@@ -685,6 +685,15 @@ PRODUCT_VENDOR_PROPERTIES += ro.soc.model=SM7150
 # ksu_script.sh (this user's YouTube hiding) stay out of a published build.
 # Personal builds ignore the file and ship everything present.
 SUNFISH_RELEASE ?= 0
+
+# SUNFISH_KSU=false builds without any KernelSU userspace: no manager app, no
+# libksud.so, no autoinstall service, no module zips. Pair it with CONFIG_KSU=n
+# in the kernel defconfig -- shipping the manager against a kernel without KSU
+# gives an app that cannot work, and an installer with nothing behind it.
+# Used both to isolate KSU when debugging, and to prove the tree still builds
+# for a kernel that has no KernelSU at all.
+SUNFISH_KSU ?= true
+
 SUNFISH_RELEASE_LIST := $(shell sed -e 's/#.*//' device/google/sunfish/release.txt 2>/dev/null)
 # $(call sunfish-release-filter,<paths>) -> those whose basename contains a listed entry
 sunfish-release-filter = $(foreach f,$(1),\
@@ -711,6 +720,9 @@ USER_APP_PERMS_BP := $(call sunfish-release-filter,\
 PRODUCT_PACKAGES += $(foreach xml,$(USER_APP_PERMS_BP),$(notdir $(xml)))
 else
 USER_APPS_BP := $(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/*.apk)
+ifneq ($(SUNFISH_KSU),true)
+USER_APPS_BP := $(filter-out %/KernelSUNext.apk,$(USER_APPS_BP))
+endif
 PRODUCT_PACKAGES += $(foreach apk,$(USER_APPS_BP),$(basename $(notdir $(apk))))
 # .apks (bundletool APK Set, android_app_set modules) -- split-config apps like Gboard
 USER_APP_SETS_BP := $(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/*.apks)
@@ -737,13 +749,17 @@ endif
 # host-fs permissions either, so config.fs is the only layer that sticks.
 # Only when the KernelSUNext app itself is being built (see extra-apps above);
 # BoardConfigLineage.mk's chmod stamp rule uses the same condition.
+ifeq ($(SUNFISH_KSU),true)
 ifneq ($(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/KernelSUNext.apk),)
 PRODUCT_COPY_FILES += \
     device/google/sunfish/ksud_prebuilt/libksud.so:$(TARGET_COPY_OUT_PRODUCT)/app/KernelSUNext/lib/arm64/libksud.so
 endif
+endif
 
 # Update soong config namespace
 -include vendor/google/build/soong/soong_config_namespace/qcril_oemhook.mk
+
+ifeq ($(SUNFISH_KSU),true)
 
 # KernelSU module zips shipped with the ROM, installed once each by
 # init.ksu-autoinstall.rc after boot completes. The point is a wiped device:
@@ -791,3 +807,6 @@ PRODUCT_COPY_FILES += \
 # nothing.
 PRODUCT_PRODUCT_PROPERTIES += \
     persist.sunfish.ksu_ai_reboot=1
+
+endif # SUNFISH_KSU
+
