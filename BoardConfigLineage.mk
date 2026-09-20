@@ -21,53 +21,14 @@ TARGET_KERNEL_CONFIG := sunfish_defconfig
 # so this bought us nothing anyway.
 #TARGET_KERNEL_NO_GCC := true
 TARGET_KERNEL_SOURCE := kernel/google/msm-4.14
-# Kernel toolchain -- MUST match the kernel source in kernel/google/msm-4.14:
-#
-#   abu-adm 16-ksu (KernelSU-Next + susfs, branch sunfish-abu-16ksu)
-#       -> platform Clang 21 (r563880c), the line active below.
-#          This tree uses modern constructs (e.g. scoped_guard() in
-#          kernel/locking/rtmutex.c) that Clang 12 rejects with
-#          -Werror,-Wunused-variable. Upstream builds it with Clang 21 too.
-#
-#   Evolution X's own kernel (branches sunfish-build-fixes / sunfish-ksu-susfs /
-#   sunfish-ksunext-susfs)
-#       -> Clang 12 (r416183b); the platform Clang 21's stricter diagnostics
-#          reject that older source. Swap the two lines below when building those.
-#
-#   kernel branch "compiler" -- Clang 21 VERIFIED BOOTING 2026-09-06 (build #38,
-#   boot_completed in 27.0s, 0 module CRC errors). Clang 20 (r547379) also
-#   verified (#37). Earlier clang-21 "boot failures" were not the toolchain --
-#   they were CONFIG_MODVERSIONS rejecting all 41 vendor modules because the
-#   test kernel was booted against a stale /vendor; see
-#   ~/ksu/MODULE-ABI-ROOT-CAUSE-20260906.txt.
-#
-#   (historical note, clang-20 port) -- VERIFIED BOOTING 2026-09-06
-#       -> Clang 20 (r547379), the line active below. This is byte-for-byte
-#          the same toolchain the official EvolutionX 11.5.3 sunfish OTA was
-#          built with (banner: "Android (13290119, +pgo, +bolt, +lto, +mlgo,
-#          based on r547379) clang version 20.0.0"), so it is known to build
-#          this kernel family. lopro ships 4.14.357 built with Clang 21.
-#          Built clean first try and booted in 28s with CFI_CLANG=y,
-#          LTO_CLANG=y, FTRACE=y; zygote + zygisksu healthy.
-#          Clang 21 = r563880c (build 14054515), the line active below.
-#          lopro's 11.9 OTA banner reads "Android clang version 21.0.0,
-#          LLD 21.0.0" (the short form hides his exact r-number), but it
-#          must be an r563880c-era build: he carries the identical
-#          qca-wifi-host-cmn source with `return A_ERROR;` at ce_main.c:1750
-#          and no warning suppression.
-#          Do NOT use r574158 (also 21.0.0, build 14054843): it added
-#          -Wimplicit-enum-enum-cast, which -Werror turns fatal on exactly
-#          that line. r563880c doesn't know the flag at all; r547379
-#          (Clang 20) doesn't have it either.
 # clang 23
 TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r614150)
 # clang 22
 #TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r596125)
 # clang 21
-#TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r563880c)
 #TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r574158)
+# clang 20
 #TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r547379)
-#TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/kernel/$(HOST_PREBUILT_TAG)/clang-r416183b)
 TARGET_NEEDS_DTBOIMAGE := true
 
 # Partitions
