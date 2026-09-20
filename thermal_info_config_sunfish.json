@@ -101,25 +101,25 @@
             "Monitor":true,
             "Actions":[
                 {
-                    "Type":"COMPONTENT",
+                    "Type":"CPU",
                     "Name":"thermal-cpufreq-0",
                     "TriggerOffsets":[0.0,1.0,2.0,3.0,4.0,5.0,6.0],
                     "ExpectedValues":[0,2,4,6,8,10,12]
                 },
                 {
-                    "Type":"COMPONTENT",
+                    "Type":"CPU",
                     "Name":"thermal-cpufreq-7",
                     "TriggerOffsets":[0.0,1.0,2.0,3.0,4.0,5.0,6.0],
                     "ExpectedValues":[0,2,4,6,8,10,12]
                 },
                 {
-                    "Type":"COMPONTENT",
+                    "Type":"GPU",
                     "Name":"thermal-devfreq-0",
                     "TriggerOffsets":[0.0,1.0,2.0,3.0,4.0,5.0,6.0],
                     "ExpectedValues":[0,1,2,3,4,5,6]
                 },
                 {
-                    "Type":"COMPONTENT",
+                    "Type":"BATTERY",
                     "Name":"fcc",
                     "TriggerOffsets":[0.0,1.0,2.0,3.0,4.0,5.0,6.0],
                     "ExpectedValues":[0,1,2,3,4,5,6]
