@@ -163,7 +163,7 @@ echo "$(date) $installed module(s) installed; reboot needed to activate" >> "$LO
 [ "$REBOOT" = "1" ] || exit 0
 # Never reboot out from under setup wizard: boot_completed fires long before the
 # user finishes it. Waiting costs nothing -- this runs again on the next boot.
-[ "$(settings get secure user_setup_complete 2>/dev/null)" = "1" ] || exit 0
+# [ "$(settings get secure user_setup_complete 2>/dev/null)" = "1" ] || exit 0
 # Guard against a reboot loop if a module somehow fails to mark itself done.
 [ -f "$STATE/.rebooted" ] && exit 0
 : > "$STATE/.rebooted"

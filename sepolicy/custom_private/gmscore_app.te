@@ -1,4 +1,12 @@
 # Rules placed in the private partition have access to core system types
-allow gmscore_app adbd_prop:file { read open getattr };
+# "map" is a separate permission from "read" since Android 10, and libc mmaps
+# the per-context property area rather than read()ing it -- so read/open/getattr
+# alone still leave a denial. Without map, DroidGuard (com.google.android.gms.
+# unstable) stalls every IDroidGuardHandle call for 129s-390s, GMS then sends
+# droidguard_results=null to android.clients.google.com/auth, and Play sign-in
+# dies with "Add account completed with status=Unknown" ("Something went wrong").
+# Verified 2026-09-18: adding map live via `ksud sepolicy patch` took the same
+# binder call from 129021ms to 1453ms and stopped all 70 denials.
+allow gmscore_app adbd_prop:file { read open getattr map };
 allow gmscore_app adb_data_file:dir { getattr search };
 

@@ -90,9 +90,7 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/debuglog.sh:$(TARGET_COPY_OUT_VENDOR)/bin/debuglog.sh \
     $(LOCAL_PATH)/init.data-adb-seed.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/init.data-adb-seed.rc \
     $(LOCAL_PATH)/data-adb-seed/daily_clean.sh:$(TARGET_COPY_OUT_VENDOR)/etc/data-adb-seed/daily_clean.sh \
-    $(LOCAL_PATH)/data-adb-seed/cron/crontabs/root:$(TARGET_COPY_OUT_VENDOR)/etc/data-adb-seed/cron/crontabs/root \
     $(LOCAL_PATH)/data-adb-seed/boot-completed.d/low_battery_shutdown.sh:$(TARGET_COPY_OUT_VENDOR)/etc/data-adb-seed/boot-completed.d/low_battery_shutdown.sh \
-    $(LOCAL_PATH)/data-adb-seed/boot-completed.d/start_crond.sh:$(TARGET_COPY_OUT_VENDOR)/etc/data-adb-seed/boot-completed.d/start_crond.sh \
 
 # Partitions
 PRODUCT_PACKAGES += \
@@ -809,4 +807,18 @@ PRODUCT_PRODUCT_PROPERTIES += \
     persist.sunfish.ksu_ai_reboot=1
 
 endif # SUNFISH_KSU
+
+#add compression support
+PRODUCT_VENDOR_PROPERTIES += \
+    vold.has_compress=1
+
+PRODUCT_PACKAGES += \
+    f2fs_io
+
+# Enable F2FS support for user images
+TARGET_USERIMAGES_USE_F2FS := true
+BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE := f2fs
+
+# Enable F2FS compression features for make_f2fs during image creation
+BOARD_USERDATAIMAGE_FILE_SYSTEM_COMPRESS := extra_attr,compression,inode_checksum,sb_checksum
 
