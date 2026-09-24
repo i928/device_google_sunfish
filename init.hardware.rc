@@ -68,6 +68,11 @@ on init && property:vendor.skip.init=0
     write /sys/devices/system/cpu/cpu6/online 1
     write /sys/devices/system/cpu/cpu7/online 1
 
+    write /sys/devices/system/cpu/cpufreq/policy0/schedutil/hispeed_freq 1804800
+    write /sys/devices/system/cpu/cpufreq/policy6/schedutil/hispeed_freq 2208000
+    write /sys/devices/system/cpu/cpufreq/policy0/schedutil/hispeed_load 85
+    write /sys/devices/system/cpu/cpufreq/policy6/schedutil/hispeed_load 85
+
     # configure governor settings for little cluster
     write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor schedutil
     write /sys/devices/system/cpu/cpu0/cpufreq/schedutil/up_rate_limit_us 500
@@ -706,6 +711,10 @@ on property:persist.radio.multisim.config=dsds
 on property:ro.boot.hardware.radio.subtype=1
     setprop audio.camerasound.force true
 
+on property:sys.boot_completed=0
+    setprop dalvik.vm.dex2oat-cpu-set 0,1,2,3,4,5,6,7
+    setprop dalvik.vm.dex2oat-threads 8
+
 on property:persist.sys.device_provisioned=1
     setprop dalvik.vm.dex2oat-cpu-set 0,1,2,3,4,5,7
     setprop dalvik.vm.dex2oat-threads 6
@@ -713,7 +722,7 @@ on property:persist.sys.device_provisioned=1
 service daily_clean_job /system/bin/sh /data/adb/daily_clean.sh
     disabled
     oneshot
-    class main
+    class late_start
     user root
     group root
     seclabel u:r:daily_clean:s0
@@ -722,7 +731,7 @@ on property:sys.boot_completed=1
     start daily_timer_daemon
 
 service daily_timer_daemon /system/bin/sh -c "while true; do sleep 3600; start daily_clean_job; done"
-    class main
+    class late_start
     user root
     group root
     disabled
