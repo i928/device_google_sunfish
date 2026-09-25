@@ -632,6 +632,10 @@ PRODUCT_COPY_FILES += \
 PRODUCT_PROPERTY_OVERRIDES += \
     persist.vendor.verbose_logging_enabled=false
 
+#improve performance
+#PRODUCT_PROPERTY_OVERRIDES += \
+#    pm.dexopt.boot=verify
+
 -include vendor/qcom/sm8150/proprietary/commonsys-intf/data/data_commonsys-intf_system_product.mk
 -include vendor/qcom/sm8150/proprietary/commonsys-intf/data/data_commonsys-intf_vendor_product.mk
 # Security
@@ -730,6 +734,16 @@ PRODUCT_PACKAGES += $(foreach apkset,$(USER_APP_SETS_BP),$(basename $(notdir $(a
 USER_APP_PERMS_BP := $(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/privapp-permissions-*.xml)
 PRODUCT_PACKAGES += $(foreach xml,$(USER_APP_PERMS_BP),$(notdir $(xml)))
 endif
+# Apks shipped only to be copied to Download/precopy at boot, not installed:
+# ~/extraAPKs/copy/*.apk -> prebuilt_etc precopy_<name> in /product/etc/precopy
+# (see run.sh), copied out by the precopy.sh boot script.
+ifneq ($(BISECT_ONLY_KSU),1)
+PRECOPY_APKS := $(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/precopy/*.apk)
+ifeq ($(SUNFISH_RELEASE),1)
+PRECOPY_APKS := $(call sunfish-release-filter,$(PRECOPY_APKS))
+endif
+PRODUCT_PACKAGES += $(foreach apk,$(PRECOPY_APKS),precopy_$(basename $(notdir $(apk))))
+endif
 # KernelSUNext's bundled libksud.so never gets extracted for a pre-baked
 # /product/app install (PackageManager only extracts lib/<abi>/*.so on a
 # normal /data/app install) -- the app's own code exec's a hardcoded path
@@ -807,10 +821,6 @@ PRODUCT_PRODUCT_PROPERTIES += \
     persist.sunfish.ksu_ai_reboot=1
 
 endif # SUNFISH_KSU
-
-#add compression support
-PRODUCT_VENDOR_PROPERTIES += \
-    vold.has_compress=1
 
 PRODUCT_PACKAGES += \
     f2fs_io
