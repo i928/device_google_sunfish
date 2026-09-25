@@ -176,6 +176,17 @@ while [ "$pass_no" -le 3 ]; do
 done
 rm -f "$OUT"
 
+# ksu-snapshot.sh staged the ROM's module snapshot at post-fs-data this boot,
+# the same state zip installs leave: they go live on the next boot, so count
+# them as installed and take the same single reboot below.
+if [ -f "$STATE/snapshot.reboot" ]; then
+	rm -f "$STATE/snapshot.reboot"
+	n=$(ls /data/adb/modules_update 2>/dev/null | wc -l)
+	installed=$((installed + n))
+	total=$((total + n))
+	log "[SNAPSHOT] $n modules staged from the ROM snapshot at post-fs-data."
+fi
+
 # Boot scripts shipped alongside the zips. They are not modules and not
 # installed anywhere; they are executed from here, detached, on every boot --
 # which is what they expect anyway (ksu_script.sh sleeps, then bind-mounts over

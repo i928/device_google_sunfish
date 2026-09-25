@@ -743,6 +743,15 @@ ifeq ($(SUNFISH_RELEASE),1)
 PRECOPY_APKS := $(call sunfish-release-filter,$(PRECOPY_APKS))
 endif
 PRODUCT_PACKAGES += $(foreach apk,$(PRECOPY_APKS),precopy_$(basename $(notdir $(apk))))
+# Apks installed as normal user apps once setup wizard is done:
+# ~/extraAPKs/install/*.apk -> prebuilt_etc userapp_<name> in
+# /product/etc/install-apps (see run.sh), installed by the install-apps.sh
+# boot script. They keep their own signature, so they update normally.
+USER_INSTALL_APKS := $(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/install-apps/*.apk)
+ifeq ($(SUNFISH_RELEASE),1)
+USER_INSTALL_APKS := $(call sunfish-release-filter,$(USER_INSTALL_APKS))
+endif
+PRODUCT_PACKAGES += $(foreach apk,$(USER_INSTALL_APKS),userapp_$(basename $(notdir $(apk))))
 endif
 # KernelSUNext's bundled libksud.so never gets extracted for a pre-baked
 # /product/app install (PackageManager only extracts lib/<abi>/*.so on a
@@ -807,7 +816,21 @@ endif
 PRODUCT_COPY_FILES += $(foreach s,$(KSU_AUTOINSTALL_SCRIPTS),\
     $(s):$(TARGET_COPY_OUT_PRODUCT)/etc/ksu-autoinstall/scripts/$(notdir $(s)))
 
+# Module snapshot: a finished install (modules/ + installer-created files +
+# SELinux label list), unpacked at post-fs-data on the first boot after a wipe
+# by ksu-snapshot.sh in place of zip installs (staged like `ksud module
+# install`; one activation reboot, as after zip installs). The zips it was
+# made from live in
+# ksu-autoinstall/installed-in-snapshot/, out of the *.zip wildcard above.
+KSU_SNAPSHOT := $(wildcard device/google/sunfish/ksu-autoinstall/snapshot/ksu-snapshot.tar.gz)
+ifeq ($(SUNFISH_RELEASE),1)
+KSU_SNAPSHOT := $(call sunfish-release-filter,$(KSU_SNAPSHOT))
+endif
+PRODUCT_COPY_FILES += $(foreach t,$(KSU_SNAPSHOT),\
+    $(t):$(TARGET_COPY_OUT_PRODUCT)/etc/ksu-autoinstall/$(notdir $(t)))
+
 PRODUCT_COPY_FILES += \
+    device/google/sunfish/ksu-snapshot.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/bin/ksu-snapshot.sh \
     device/google/sunfish/ksu-autoinstall.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/bin/ksu-autoinstall.sh \
     device/google/sunfish/init.ksu-autoinstall.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/init.ksu-autoinstall.rc
 
