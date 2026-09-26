@@ -775,12 +775,17 @@ endif
 # PRODUCT_COPY_FILES's own copy rule uses plain non-preserving `cp`, and
 # separately the image-packaging step doesn't mirror the staging dir's
 # host-fs permissions either, so config.fs is the only layer that sticks.
+# libadbroot.so (manager 3.4+) takes the same route: the manager runs
+# `ksud install --libadbroot <nativeLibraryDir>/libadbroot.so`, and ksud copies
+# it to /data/adb/ksu/lib for the adb_root feature. It is a shared library,
+# not exec'd, so it needs no +x.
 # Only when the KernelSUNext app itself is being built (see extra-apps above);
 # BoardConfigLineage.mk's chmod stamp rule uses the same condition.
 ifeq ($(SUNFISH_KSU),true)
 ifneq ($(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/KernelSUNext.apk),)
 PRODUCT_COPY_FILES += \
-    device/google/sunfish/ksud_prebuilt/libksud.so:$(TARGET_COPY_OUT_PRODUCT)/app/KernelSUNext/lib/arm64/libksud.so
+    device/google/sunfish/ksud_prebuilt/libksud.so:$(TARGET_COPY_OUT_PRODUCT)/app/KernelSUNext/lib/arm64/libksud.so \
+    device/google/sunfish/ksud_prebuilt/libadbroot.so:$(TARGET_COPY_OUT_PRODUCT)/app/KernelSUNext/lib/arm64/libadbroot.so
 endif
 endif
 
