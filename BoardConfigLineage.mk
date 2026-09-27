@@ -21,6 +21,29 @@ TARGET_KERNEL_CONFIG := sunfish_defconfig
 # so this bought us nothing anyway.
 #TARGET_KERNEL_NO_GCC := true
 TARGET_KERNEL_SOURCE := kernel/google/msm-4.14
+
+# SUNFISH_KERNEL_DEBUG=<variant> builds the kernel with the options of
+# $(TARGET_KERNEL_SOURCE)/build.config.sunfish_<variant> (kasan, khwasan,
+# debug_hang, debug_locking, debug_memory, debug_memory_accounting, debug_api,
+# no-cfi, performance). Those files are for Google's build/build.sh, which the
+# ROM build never reads; kernel-debug/buildconfig2frag.py turns their
+# scripts/config options into a fragment in out/, merged after sunfish_defconfig.
+# Generated at kati time, so it always matches the kernel branch checked out.
+# Most variants turn LTO/CFI off; flash the matching vendor.img (autorun does).
+# Debug kernels are slow: never use one for timing.
+#   SUNFISH_KERNEL_DEBUG=kasan m bootimage vendorimage
+ifneq ($(SUNFISH_KERNEL_DEBUG),)
+SUNFISH_KDEBUG_FRAG := $(OUT_DIR)/sunfish-kernel-debug/$(SUNFISH_KERNEL_DEBUG).config
+_kdebug := $(shell mkdir -p $(dir $(SUNFISH_KDEBUG_FRAG)) && \
+    python3 device/google/sunfish/kernel-debug/buildconfig2frag.py \
+    $(TARGET_KERNEL_SOURCE)/build.config.sunfish_$(SUNFISH_KERNEL_DEBUG) $(SUNFISH_KDEBUG_FRAG))
+ifeq ($(filter ok,$(_kdebug)),)
+$(error SUNFISH_KERNEL_DEBUG=$(SUNFISH_KERNEL_DEBUG): $(_kdebug))
+endif
+$(info SUNFISH_KERNEL_DEBUG=$(SUNFISH_KERNEL_DEBUG): kernel fragment $(SUNFISH_KDEBUG_FRAG) ($(_kdebug)))
+TARGET_KERNEL_CONFIG_EXT += $(SUNFISH_KDEBUG_FRAG)
+endif
+
 # clang 23
 TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r614150)
 # clang 22
