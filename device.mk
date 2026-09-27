@@ -794,6 +794,7 @@ endif
 
 ifeq ($(SUNFISH_KSU),true)
 
+# Setup instructions for everything below: KSU.md.
 # KernelSU module zips shipped with the ROM, installed once each by
 # init.ksu-autoinstall.rc after boot completes. The point is a wiped device:
 # fastboot -w erases /data and /sdcard, but /product survives, so the phone can

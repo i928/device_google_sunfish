@@ -1,4 +1,5 @@
 # Seed ksud, and run the KSU autoinstall script once boot completes.
+# How to set up the modules it installs: device/google/sunfish/KSU.md.
 #
 # Seeding ksud: on a wiped device /data/adb/ksud does not exist until the
 # manager app is opened, and without it KernelSU is completely inert:
