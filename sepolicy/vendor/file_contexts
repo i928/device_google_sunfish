@@ -1,2 +1,0 @@
-/vendor/etc/data-adb-seed/daily_clean\.sh     u:object_r:daily_clean_exec:s0
-/data/adb/daily_clean\.sh                     u:object_r:daily_clean_exec:s0
