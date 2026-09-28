@@ -9,3 +9,6 @@ on post-fs-data
 
     copy /vendor/etc/data-adb-seed/boot-completed.d/low_battery_shutdown.sh /data/adb/boot-completed.d/low_battery_shutdown.sh
     chmod 0755 /data/adb/boot-completed.d/low_battery_shutdown.sh
+
+    copy /vendor/etc/data-adb-seed/boot-completed.d/daily_clean_timer.sh /data/adb/boot-completed.d/daily_clean_timer.sh
+    chmod 0755 /data/adb/boot-completed.d/daily_clean_timer.sh

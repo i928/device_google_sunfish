@@ -718,20 +718,3 @@ on property:sys.boot_completed=0
 on property:persist.sys.device_provisioned=1
     setprop dalvik.vm.dex2oat-cpu-set 0,1,2,3,4,5,7
     setprop dalvik.vm.dex2oat-threads 6
-
-service daily_clean_job /system/bin/sh /data/adb/daily_clean.sh
-    disabled
-    oneshot
-    class late_start
-    user root
-    group root
-    seclabel u:r:daily_clean:s0
-
-on property:sys.boot_completed=1
-    start daily_timer_daemon
-
-service daily_timer_daemon /system/bin/sh -c "while true; do sleep 3600; start daily_clean_job; done"
-    class late_start
-    user root
-    group root
-    disabled
