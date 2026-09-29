@@ -40,7 +40,8 @@ _kdebug := $(shell mkdir -p $(dir $(SUNFISH_KDEBUG_FRAG)) && \
 ifeq ($(filter ok,$(_kdebug)),)
 $(error SUNFISH_KERNEL_DEBUG=$(SUNFISH_KERNEL_DEBUG): $(_kdebug))
 endif
-$(info SUNFISH_KERNEL_DEBUG=$(SUNFISH_KERNEL_DEBUG): kernel fragment $(SUNFISH_KDEBUG_FRAG) ($(_kdebug)))
+# $(warning), not $(info): Soong parses the board config stdout as KEY=value lines
+$(warning SUNFISH_KERNEL_DEBUG -> kernel fragment $(SUNFISH_KDEBUG_FRAG), $(_kdebug))
 TARGET_KERNEL_CONFIG_EXT += $(SUNFISH_KDEBUG_FRAG)
 endif
 
