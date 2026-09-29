@@ -14,15 +14,22 @@ if [ "$CURRENT_HOUR" != "04" ]; then
     exit 0
 fi
 
+# 1. Enforce strict absolute paths for background/headless reliability
+PATH="/system/bin:/system/xbin:/product/bin:/apex/com.android.runtime/bin"
+export PATH
+
 # Configuration Paths
 # NOTE: /storage/emulated/0 is a FUSE mount isolated from the init namespace.
 # Writing directly to the absolute path under /data guarantees availability to root.
-MANAGED_DIR="/data/media/0/Download/F2FSCompressed"
-LOG_FILE="$MANAGED_DIR/f2fs-compress.log"
+LOG_DIR="/data/media/0/Download/F2FSCompressed"
+LOG_FILE="$LOG_DIR/f2fs-compress.log"
+if [ ! -d "$LOG_DIR" ]; then
+    mkdir -p "$LOG_DIR"
+    chmod 775 "$LOG_DIR"
+    echo "[INFO] Creating directory topology at $LOG_DIR..." >> "$LOG_FILE"
+fi
 F2FS_IO="/product/bin/f2fs_io"
 
-# Ensure runtime directories exist
-mkdir -p "$MANAGED_DIR"
 
 echo "=== F2FS optimization cycle initiated: $(date) ===" >> "$LOG_FILE"
 
@@ -70,12 +77,19 @@ fi
 
 # ---------------------------------------------------------------------
 # Phase 3: Explicit Manual Compression Workloop (compress_mode=user)
+#
+# Only extracted native libraries under /data/app. They are read-only and
+# replaced whole on app updates, so release_cblocks is safe for them. After
+# release_cblocks the kernel refuses writes to a file (EPERM; SIGBUS through a
+# writable mapping), so files apps write -- anything under Android/data --
+# must never be released. chattr -p 0 is not used either: /data/media relies
+# on project IDs for per-app storage accounting.
 # ---------------------------------------------------------------------
-# Mark the target directory for inheritance. New files automatically receive the compression flag.
-if ! "$F2FS_IO" setflags compression "$MANAGED_DIR" >> "$LOG_FILE" 2>&1; then
-    echo "[ERROR] Failed to bind compression attribute flags to $MANAGED_DIR." >> "$LOG_FILE"
-    exit 1
-fi
+# Target Configuration: Scan the actual Android App directory
+MANAGED_DIR="/data/app"
+
+# Mark the target directory for future inheritance.
+"$F2FS_IO" setflags compression "$MANAGED_DIR" >> "$LOG_FILE" 2>&1
 
 # Initialize runtime tally metrics
 compressed_count=0
@@ -83,32 +97,51 @@ released_blocks_total=0
 
 echo "[INFO] Scanning for uncompressed targets within $MANAGED_DIR..." >> "$LOG_FILE"
 
-# Process Substitution (< <(find...)) prevents the execution loop from spawning a Subshell,
-# guaranteeing that variable state manipulation persists past loop termination.
-while IFS= read -r file; do
-    # Verify the item has inherited the active cluster configuration compression flag
+# Scan read-only native binaries (.so), bypassing active root-tool runtimes
+find /data/app -xdev -type f -name '*.so' -size +15k | while IFS= read -r file; do
+
+    # Enforce an explicit exception filter to protect tool runtimes (Magisk / Shizuku)
+    case "$file" in
+        *moe.shizuku*|*top.johnwu.magisk*) continue ;;
+    esac
+
+    # Assign the structural compression flag to the target file
+    "$F2FS_IO" setflags compression "$file" 2>/dev/null
+
+    # Validate file successfully accepted the cluster flag configuration
     "$F2FS_IO" getflags "$file" 2>/dev/null | grep -qw compression || continue
 
-    # Because compress_mode=user is configured in fstab, the kernel requires manual invocation
+    # Invoke manual execution block (Natively resolves compress_mode=user passive states)
     if "$F2FS_IO" compress "$file" >> "$LOG_FILE" 2>&1; then
-        # Reclaim unused physical disk allocation blocks generated from compression sizing margins
+        # Reclaim block allocation margins
         released_blocks_current="$("$F2FS_IO" release_cblocks "$file" 2>> "$LOG_FILE")"
-        
-        # Enforce basic numeric integrity sanitization
+
+        # Sanitize loop inputs
         case "$released_blocks_current" in
             ''|*[!0-9]*) released_blocks_current=0 ;;
         esac
-        
-        compressed_count=$((compressed_count + 1))
-        released_blocks_total=$((released_blocks_total + released_blocks_current))
-    fi
-done < <(find "$MANAGED_DIR" -xdev -type f -size +4k -size -100M \( -name '*.txt' -o -name '*.log' -o -name '*.json' -o -name '*.xml' -o -name '*.csv' \))
 
-# Calculate accurate aggregate block footprint reductions (AOSP blocks default to 4KB size metric)
+        if [ "$released_blocks_current" -gt 0 ]; then
+            compressed_count=$((compressed_count + 1))
+            released_blocks_total=$((released_blocks_total + released_blocks_current))
+            
+            # Commit running state to a temp register to completely bypass mksh subshell pipe isolation
+            echo "$compressed_count $released_blocks_total" > /data/local/tmp/.f2fs_tally
+        fi
+    fi
+done
+
+# Synchronize metrics back into parent thread scope
+if [ -f /data/local/tmp/.f2fs_tally ]; then
+    read -r compressed_count released_blocks_total < /data/local/tmp/.f2fs_tally
+    rm -f /data/local/tmp/.f2fs_tally
+fi
+
+# Calculate storage reduction boundaries (4KB sectors mapped to MiB)
 approx_saved_mib=$((released_blocks_total * 4 / 1024))
 
-echo "[SUCCESS] Compression routine completed." >> "$LOG_FILE"
-echo ">> Total Files Optimized: $compressed_count" >> "$LOG_FILE"
+echo "[SUCCESS] F2FS optimization cycle finalized." >> "$LOG_FILE"
+echo ">> Total Libraries Optimized: $compressed_count" >> "$LOG_FILE"
 echo ">> Reclaimed Storage Blocks: $released_blocks_total" >> "$LOG_FILE"
 echo ">> Estimated Space Savings: ${approx_saved_mib} MiB" >> "$LOG_FILE"
-
+echo "--------------------------------------------------------" >> "$LOG_FILE"
