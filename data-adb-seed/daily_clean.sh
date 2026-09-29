@@ -78,12 +78,17 @@ fi
 # ---------------------------------------------------------------------
 # Phase 3: Explicit Manual Compression Workloop (compress_mode=user)
 #
-# Only extracted native libraries under /data/app. They are read-only and
-# replaced whole on app updates, so release_cblocks is safe for them. After
+# Only APKs and extracted native libraries under /data/app. They are read-only
+# and replaced whole on app updates, so release_cblocks is safe for them. After
 # release_cblocks the kernel refuses writes to a file (EPERM; SIGBUS through a
 # writable mapping), so files apps write -- anything under Android/data --
 # must never be released. chattr -p 0 is not used either: /data/media relies
 # on project IDs for per-app storage accounting.
+#
+# The kernel only sets the compression flag on a file with no data yet
+# (fs/f2fs/file.c: EINVAL if F2FS_HAS_BLOCKS), so existing files cannot be
+# converted. Flagging /data/app makes files created later -- app installs and
+# updates -- inherit it; the loop picks those up and skips the rest.
 # ---------------------------------------------------------------------
 # Target Configuration: Scan the actual Android App directory
 MANAGED_DIR="/data/app"
@@ -97,18 +102,15 @@ released_blocks_total=0
 
 echo "[INFO] Scanning for uncompressed targets within $MANAGED_DIR..." >> "$LOG_FILE"
 
-# Scan read-only native binaries (.so), bypassing active root-tool runtimes
-find /data/app -xdev -type f -name '*.so' -size +15k | while IFS= read -r file; do
+# Scan read-only APKs and native binaries (.so), bypassing active root-tool runtimes
+find /data/app -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k | while IFS= read -r file; do
 
     # Enforce an explicit exception filter to protect tool runtimes (Magisk / Shizuku)
     case "$file" in
         *moe.shizuku*|*top.johnwu.magisk*) continue ;;
     esac
 
-    # Assign the structural compression flag to the target file
-    "$F2FS_IO" setflags compression "$file" 2>/dev/null
-
-    # Validate file successfully accepted the cluster flag configuration
+    # Only files that inherited the compression flag at creation qualify
     "$F2FS_IO" getflags "$file" 2>/dev/null | grep -qw compression || continue
 
     # Invoke manual execution block (Natively resolves compress_mode=user passive states)
@@ -141,7 +143,7 @@ fi
 approx_saved_mib=$((released_blocks_total * 4 / 1024))
 
 echo "[SUCCESS] F2FS optimization cycle finalized." >> "$LOG_FILE"
-echo ">> Total Libraries Optimized: $compressed_count" >> "$LOG_FILE"
+echo ">> Total Files Optimized: $compressed_count" >> "$LOG_FILE"
 echo ">> Reclaimed Storage Blocks: $released_blocks_total" >> "$LOG_FILE"
 echo ">> Estimated Space Savings: ${approx_saved_mib} MiB" >> "$LOG_FILE"
 echo "--------------------------------------------------------" >> "$LOG_FILE"
