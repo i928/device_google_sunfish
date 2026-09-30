@@ -1,5 +1,7 @@
 #!/system/bin/sh
 
+# Initialize the process timer register natively
+START_TIME=$SECONDS
 # =====================================================================
 # F2FS User-Mode Compression & Automated Cache Maintenance Script
 # Target: Android 16 (Evolution X 11) - Pixel 4a (sunfish)
@@ -102,7 +104,15 @@ released_blocks_total=0
 
 echo "[INFO] Scanning for uncompressed targets within $MANAGED_DIR..." >> "$LOG_FILE"
 
-# Scan read-only APKs and native binaries (.so), bypassing active root-tool runtimes
+TMP_DIR="/data/local/tmp/f2fs_scratch"
+# Ensure our working directory exists
+mkdir -p "$TMP_DIR"
+echo "--- Starting F2FS Optimization Loop ---" > "$LOG_FILE"
+
+# Batch processing throttle threshold counter
+loop_count=0
+
+# Find target binaries deep within subdirectories
 find /data/app -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k | while IFS= read -r file; do
 
     # Enforce an explicit exception filter to protect tool runtimes (Magisk / Shizuku)
@@ -110,28 +120,138 @@ find /data/app -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k | wh
         *moe.shizuku*|*top.johnwu.magisk*) continue ;;
     esac
 
-    # Only files that inherited the compression flag at creation qualify
-    "$F2FS_IO" getflags "$file" 2>/dev/null | grep -qw compression || continue
+    # 1. DAILY SKIP CHECK: Verify actual active compression status
+    if "$F2FS_IO" getflags "$file" 2>/dev/null | grep -qw compression; then
+        c_blocks=$("$F2FS_IO" get_cblocks "$file" 2>/dev/null)
+        case "$c_blocks" in
+            ''|*[!0-9]*) c_blocks=0 ;;
+        esac
+        # Already processed files skip instantly in milliseconds
+        if [ "$c_blocks" -gt 0 ]; then
+            continue
+        fi
+    fi
 
-    # Invoke manual execution block (Natively resolves compress_mode=user passive states)
-    if "$F2FS_IO" compress "$file" >> "$LOG_FILE" 2>&1; then
-        # Reclaim block allocation margins
-        released_blocks_current="$("$F2FS_IO" release_cblocks "$file" 2>> "$LOG_FILE")"
+    # 2. Extract package name from the /data/app path string
+    pkg_name=$(echo "$file" | sed -E 's|^/data/app/~~[^/]+/([^/-]+).*|\1|')
 
+    # Double check extraction accuracy; fallback safely to log tracking if parsing slips
+    if [ -z "$pkg_name" ] || [ "$pkg_name" = "data" ]; then
+        pkg_name="unknown"
+    fi
+
+    echo "Processing target file: $file [Package: $pkg_name]" >> "$LOG_FILE"
+    tmp_file="$TMP_DIR/$(basename "$file").tmp"
+
+    # 3. Create a fresh empty file and initialize the compression inode layout
+    touch "$tmp_file"
+    if ! "$F2FS_IO" setflags compression "$tmp_file" >> "$LOG_FILE" 2>&1; then
+        echo "Failed to set compression flag on temp file" >> "$LOG_FILE"
+        rm -f "$tmp_file"
+        continue
+    fi
+
+    # 4. Stream the original payload into the newly flagged structure
+    if ! cat "$file" > "$tmp_file" 2>> "$LOG_FILE"; then
+        echo "Failed to copy payload for: $file" >> "$LOG_FILE"
+        rm -f "$tmp_file"
+        continue
+    fi
+
+    # 5. Invoke compression clustering sequence
+    if "$F2FS_IO" compress "$tmp_file" >> "$LOG_FILE" 2>&1; then
+        # Reclaim the unused file allocation block margins
+        released_blocks_current="$("$F2FS_IO" release_cblocks "$tmp_file" 2>> "$LOG_FILE")"
         # Sanitize loop inputs
         case "$released_blocks_current" in
             ''|*[!0-9]*) released_blocks_current=0 ;;
         esac
 
-        if [ "$released_blocks_current" -gt 0 ]; then
-            compressed_count=$((compressed_count + 1))
-            released_blocks_total=$((released_blocks_total + released_blocks_current))
-            
-            # Commit running state to a temp register to completely bypass mksh subshell pipe isolation
-            echo "$compressed_count $released_blocks_total" > /data/local/tmp/.f2fs_tally
+        # 6. FIX: Use standard Android Toybox 'stat' options to read original attributes
+        # %a = octal permissions, %u = owner UID, %g = owner GID
+        perms=$(stat -c "%a" "$file" 2>/dev/null)
+        uid=$(stat -c "%u" "$file" 2>/dev/null)
+        gid=$(stat -c "%g" "$file" 2>/dev/null)
+
+        # Apply extracted permissions explicitly
+        [ -n "$perms" ] && chmod "$perms" "$tmp_file" 2>> "$LOG_FILE"
+        [ -n "$uid" ] && [ -n "$gid" ] && chown "$uid:$gid" "$tmp_file" 2>> "$LOG_FILE"
+        
+        # 7. Force-stop runtime operations to unlock active files safely
+        if [ "$pkg_name" != "unknown" ]; then
+            echo "Suspending app runtime: $pkg_name" >> "$LOG_FILE"
+            am force-stop "$pkg_name" >/dev/null 2>&1
         fi
+
+        # Swap the optimized file into place
+        if mv -f "$tmp_file" "$file" 2>> "$LOG_FILE"; then
+            # Fix SELinux context after replacing the file
+            restorecon "$file" 2>> "$LOG_FILE"
+
+            # CRITICAL SECURITY FIX: Force immediate block flush right now
+            # This pushes the file changes straight to the chip instead of letting them pile up in RAM
+            sync -f "$file" 2>/dev/null
+
+            if [ "$released_blocks_current" -gt 0 ]; then
+                # Read running variables dynamically to handle pipeline shifts safely
+                if [ -f /data/local/tmp/.f2fs_tally ]; then
+                    read -r c_count r_total < /data/local/tmp/.f2fs_tally
+                else
+                    c_count=0; r_total=0
+                fi
+                
+                c_count=$((c_count + 1))
+                r_total=$((r_total + released_blocks_current))
+                echo "$c_count $r_total" > /data/local/tmp/.f2fs_tally
+            fi
+            
+            # Increment our batch safety throttle tracker
+            loop_count=$((loop_count + 1))
+            # Rest 0.5s between every single file operation to keep UI responsive
+            usleep 500000 2>/dev/null || sleep 1
+            # Every 15 active files, force a hard global system cache flush and rest for 3 seconds
+            if [ $((loop_count % 15)) -eq 0 ]; then
+                echo "Throttling batch... Flushing system caches safely." >> "$LOG_FILE"
+                sync
+                echo 3 > /proc/sys/vm/drop_caches 2>/dev/null
+                sleep 3
+            fi
+        else
+            echo "Failed to swap optimized file into place: $file" >> "$LOG_FILE"
+            rm -f "$tmp_file"
+        fi
+    else
+        echo "Compression ioctl failed for structural reasons: $file" >> "$LOG_FILE"
+        rm -f "$tmp_file"
     fi
 done
+
+# Perform final system buffer cleanup
+sync
+echo "--- Optimization Loop Finished ---" >> "$LOG_FILE"
+
+END_TIME=$SECONDS
+ELAPSED_TOTAL=$((END_TIME - START_TIME))
+ELAPSED_MIN=$((ELAPSED_TOTAL / 60))
+ELAPSED_SEC=$((ELAPSED_TOTAL % 60))
+
+echo "--------------------------------------------------------"
+if [ -f /data/local/tmp/.f2fs_tally ]; then
+    read -r final_count final_blocks < /data/local/tmp/.f2fs_tally
+    saved_mib=$(( (final_blocks * 4) / 1024 ))
+    echo "[SUCCESS] F2FS safe optimization cycle complete."
+    echo ">> New Files Compressed Today: $final_count"
+    echo ">> Reclaimed Space: ~${saved_mib} MiB"
+    echo ">> Total Process Execution Time: ${ELAPSED_MIN}m ${ELAPSED_SEC}s"
+else
+    echo "[SUCCESS] F2FS daily optimization complete. Everything is already up-to-date!"
+    echo ">> Process Execution Time: ${ELAPSED_MIN}m ${ELAPSED_SEC}s"
+fi
+echo "--------------------------------------------------------"
+
+# Clean up working tree
+rm -rf "$TMP_DIR"
+echo "--- Optimization Loop Finished ---" >> "$LOG_FILE"
 
 # Synchronize metrics back into parent thread scope
 if [ -f /data/local/tmp/.f2fs_tally ]; then
