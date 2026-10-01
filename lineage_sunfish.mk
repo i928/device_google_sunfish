@@ -81,7 +81,7 @@ TARGET_DISABLE_EPPE := false
 # Recorder, SafetyHub, Tycho, GooglePackageInstaller, DevicePolicy, Gemini...).
 # It does NOT add Gmail/Maps/Messages, so the prebuilts in extra-apps for those
 # are not duplicated by it.
-TARGET_USES_MINI_GAPPS := false
+TARGET_USES_MINI_GAPPS := true
 
 PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST += \
     system/app/GoogleExtShared/GoogleExtShared.apk \
