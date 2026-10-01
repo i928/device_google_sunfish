@@ -199,7 +199,8 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
     usleep 200000 2>/dev/null || sleep 1
 done
 
-skipped_einval=$(wc -l < "$TMP_DIR/einval" 2>/dev/null || echo 0)
+skipped_einval=0
+[ -f "$TMP_DIR/einval" ] && skipped_einval=$(wc -l < "$TMP_DIR/einval")
 skip_listed=$(wc -l < "$TMP_DIR/skip.new")
 mv -f "$TMP_DIR/skip.new" "$SKIP_LIST"
 rm -rf "$TMP_DIR"
