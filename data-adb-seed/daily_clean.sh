@@ -137,9 +137,10 @@ compress_release() {
     echo "$n"
 }
 
-# Same, with the compress error kept out of the log.
+# Same, but a compress failure is reported through $TMP_DIR/err instead of the
+# log, so the caller can tell EINVAL (already released) from a real error.
 compress_release_quiet() {
-    "$F2FS_IO" compress "$1" >/dev/null 2>&1 || return 1
+    "$F2FS_IO" compress "$1" > "$TMP_DIR/err" 2>&1 || return 1
     n="$("$F2FS_IO" release_cblocks "$1" 2>> "$LOG_FILE")"
     case "$n" in ''|*[!0-9]*) n=0 ;; esac
     echo "$n"
@@ -164,8 +165,15 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
         # gain (incompressible) refuses compress with EINVAL every run; that
         # is expected, so it is only counted, not logged.
         if ! released=$(compress_release_quiet "$file"); then
-            echo x >> "$TMP_DIR/einval"
-            echo "$file" >> "$TMP_DIR/skip.new"; continue
+            if grep -q "Invalid argument" "$TMP_DIR/err"; then
+                echo x >> "$TMP_DIR/einval"
+                echo "$file" >> "$TMP_DIR/skip.new"
+            else
+                # Anything else (EBUSY, EOPNOTSUPP, ...) is logged and retried
+                # next run, never skip-listed.
+                echo "Compress failed: $file: $(cat "$TMP_DIR/err")" >> "$LOG_FILE"
+            fi
+            continue
         fi
         echo "In place: $file" >> "$LOG_FILE"
     else
