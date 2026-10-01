@@ -31,6 +31,10 @@ post-fs-data.d/rezygisk.sh post-mount.d/rezygisk.sh boot-completed.d/hmaoss.sh m
 EXCLUDE="modules/tricky_store/.bootstrapped modules/tricky_store/pif.prop
 modules/tricky_store/custom.pif.prop modules/tricky_store/logs"
 
+# Modules installed on the source phone that must not ship, e.g. one being
+# tried out:  SNAPSHOT_SKIP="droidwin_keybox" ./make-snapshot.sh
+for m in $SNAPSHOT_SKIP; do EXCLUDE="$EXCLUDE modules/$m"; done
+
 # AlwaysStrong's installer seeds /data/adb/tricky_store from its zip (bundled
 # keybox.xml, starter target.txt) and generates a random hbk. Seed the same two
 # files from the zip rather than this phone's fetched ones; ksu-snapshot.sh
