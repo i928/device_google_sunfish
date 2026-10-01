@@ -20,6 +20,11 @@ fi
 PATH="/system/bin:/system/xbin:/product/bin:/apex/com.android.runtime/bin"
 export PATH
 
+# Lowest CPU priority and idle I/O class: f2fs compression runs in this
+# process's context, so the foreground app always wins.
+renice -n 19 -p $$ >/dev/null 2>&1
+ionice -c 3 -p $$ >/dev/null 2>&1
+
 # Configuration Paths
 # NOTE: /storage/emulated/0 is a FUSE mount isolated from the init namespace.
 # Writing directly to the absolute path under /data guarantees availability to root.
