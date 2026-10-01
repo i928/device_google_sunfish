@@ -193,3 +193,8 @@ ELAPSED_TOTAL=$((SECONDS - START_TIME))
     echo ">> Execution Time: $((ELAPSED_TOTAL / 60))m $((ELAPSED_TOTAL % 60))s"
     echo "--------------------------------------------------------"
 } | tee -a "$LOG_FILE"
+
+# The log is written as root straight to /data/media, past the FUSE layer, so
+# MediaStore (USB/MTP, file managers) keeps the old size until it is rescanned.
+am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE \
+    -d "file:///storage/emulated/0/${LOG_FILE#/data/media/0/}" >/dev/null 2>&1
