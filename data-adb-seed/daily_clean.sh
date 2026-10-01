@@ -119,11 +119,20 @@ TALLY="/data/local/tmp/.f2fs_tally"
 
 rm -f "$TALLY"
 mkdir -p "$TMP_DIR"
+rm -f "$TMP_DIR/einval"
 echo "[INFO] Scanning for uncompressed targets within $MANAGED_DIR..." >> "$LOG_FILE"
 
 # compress + release one flagged file; prints the released block count
 compress_release() {
     "$F2FS_IO" compress "$1" >> "$LOG_FILE" 2>&1 || return 1
+    n="$("$F2FS_IO" release_cblocks "$1" 2>> "$LOG_FILE")"
+    case "$n" in ''|*[!0-9]*) n=0 ;; esac
+    echo "$n"
+}
+
+# Same, with the compress error kept out of the log.
+compress_release_quiet() {
+    "$F2FS_IO" compress "$1" >/dev/null 2>&1 || return 1
     n="$("$F2FS_IO" release_cblocks "$1" 2>> "$LOG_FILE")"
     case "$n" in ''|*[!0-9]*) n=0 ;; esac
     echo "$n"
@@ -137,12 +146,17 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
     esac
 
     if "$F2FS_IO" getflags "$file" 2>/dev/null | grep -qw compression; then
-        # Already compressed: skip. Flagged but not yet compressed: in place.
-        c_blocks=$("$F2FS_IO" get_cblocks "$file" 2>/dev/null)
-        case "$c_blocks" in ''|*[!0-9]*) c_blocks=0 ;; esac
-        [ "$c_blocks" -gt 0 ] && continue
+        # Done already when it occupies less disk than its length (compressed
+        # and released). get_cblocks cannot tell: release_cblocks resets the
+        # file's compressed-block count to 0 (fs/f2fs/file.c).
+        [ $(( $(stat -c %b "$file") * 512 )) -lt "$(stat -c %s "$file")" ] && continue
+        # Flagged but not yet compressed: in place. A file released without
+        # gain (incompressible) refuses compress with EINVAL every run; that
+        # is expected, so it is only counted, not logged.
+        if ! released=$(compress_release_quiet "$file"); then
+            echo x >> "$TMP_DIR/einval"; continue
+        fi
         echo "In place: $file" >> "$LOG_FILE"
-        released=$(compress_release "$file") || continue
     else
         echo "Copy: $file" >> "$LOG_FILE"
         tmp_file="$TMP_DIR/$(basename "$file").tmp"
@@ -174,6 +188,7 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
     usleep 200000 2>/dev/null || sleep 1
 done
 
+skipped_einval=$(wc -l < "$TMP_DIR/einval" 2>/dev/null || echo 0)
 rm -rf "$TMP_DIR"
 sync
 
@@ -188,6 +203,7 @@ ELAPSED_TOTAL=$((SECONDS - START_TIME))
 {
     echo "[SUCCESS] F2FS optimization cycle finalized."
     echo ">> Files Compressed This Run: $compressed_count"
+    echo ">> Released Earlier Without Gain (skipped): $skipped_einval"
     echo ">> Reclaimed Storage Blocks: $released_blocks_total"
     echo ">> Estimated Space Savings: $((released_blocks_total * 4 / 1024)) MiB"
     echo ">> Execution Time: $((ELAPSED_TOTAL / 60))m $((ELAPSED_TOTAL % 60))s"
