@@ -113,6 +113,11 @@ fi
 MANAGED_DIR="/data/app"
 TMP_DIR="/data/local/tmp/f2fs_scratch"
 TALLY="/data/local/tmp/.f2fs_tally"
+# Files released without gain earlier: compress refuses them with EINVAL every
+# run and nothing tells them apart from untouched files, so they are listed
+# here and skipped. Rewritten each run with only the paths still present (an
+# app update gets a new /data/app path and is tried again).
+SKIP_LIST="/data/adb/f2fs_compress_skip.list"
 
 # Mark the target directory for future inheritance.
 "$F2FS_IO" setflags compression "$MANAGED_DIR" >> "$LOG_FILE" 2>&1
@@ -120,6 +125,8 @@ TALLY="/data/local/tmp/.f2fs_tally"
 rm -f "$TALLY"
 mkdir -p "$TMP_DIR"
 rm -f "$TMP_DIR/einval"
+: > "$TMP_DIR/skip.new"
+[ -f "$SKIP_LIST" ] || : > "$SKIP_LIST"
 echo "[INFO] Scanning for uncompressed targets within $MANAGED_DIR..." >> "$LOG_FILE"
 
 # compress + release one flagged file; prints the released block count
@@ -150,11 +157,15 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
         # and released). get_cblocks cannot tell: release_cblocks resets the
         # file's compressed-block count to 0 (fs/f2fs/file.c).
         [ $(( $(stat -c %b "$file") * 512 )) -lt "$(stat -c %s "$file")" ] && continue
+        if grep -qxF "$file" "$SKIP_LIST"; then
+            echo "$file" >> "$TMP_DIR/skip.new"; continue
+        fi
         # Flagged but not yet compressed: in place. A file released without
         # gain (incompressible) refuses compress with EINVAL every run; that
         # is expected, so it is only counted, not logged.
         if ! released=$(compress_release_quiet "$file"); then
-            echo x >> "$TMP_DIR/einval"; continue
+            echo x >> "$TMP_DIR/einval"
+            echo "$file" >> "$TMP_DIR/skip.new"; continue
         fi
         echo "In place: $file" >> "$LOG_FILE"
     else
@@ -189,6 +200,8 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
 done
 
 skipped_einval=$(wc -l < "$TMP_DIR/einval" 2>/dev/null || echo 0)
+skip_listed=$(wc -l < "$TMP_DIR/skip.new")
+mv -f "$TMP_DIR/skip.new" "$SKIP_LIST"
 rm -rf "$TMP_DIR"
 sync
 
@@ -203,7 +216,7 @@ ELAPSED_TOTAL=$((SECONDS - START_TIME))
 {
     echo "[SUCCESS] F2FS optimization cycle finalized."
     echo ">> Files Compressed This Run: $compressed_count"
-    echo ">> Released Earlier Without Gain (skipped): $skipped_einval"
+    echo ">> Released Earlier Without Gain: $skip_listed on the skip list ($skipped_einval new)"
     echo ">> Reclaimed Storage Blocks: $released_blocks_total"
     echo ">> Estimated Space Savings: $((released_blocks_total * 4 / 1024)) MiB"
     echo ">> Execution Time: $((ELAPSED_TOTAL / 60))m $((ELAPSED_TOTAL % 60))s"
