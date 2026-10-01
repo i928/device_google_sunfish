@@ -166,6 +166,21 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
         # is expected, so it is only counted, not logged.
         if ! released=$(compress_release_quiet "$file"); then
             if grep -q "Invalid argument" "$TMP_DIR/err"; then
+                # Released but never compressed (seen on crosshatch: 416
+                # files, 3.6 GB, released with nothing saved). Un-release,
+                # compress and release again; skip-list it only if that
+                # still saves nothing.
+                released=0
+                if "$F2FS_IO" reserve_cblocks "$file" >/dev/null 2>&1; then
+                    released=$(compress_release_quiet "$file") || released=0
+                fi
+                if [ "$released" -gt 0 ]; then
+                    echo "Recompressed: $file" >> "$LOG_FILE"
+                    c_count=0; r_total=0
+                    [ -f "$TALLY" ] && read -r c_count r_total < "$TALLY"
+                    echo "$((c_count + 1)) $((r_total + released))" > "$TALLY"
+                    continue
+                fi
                 echo x >> "$TMP_DIR/einval"
                 echo "$file" >> "$TMP_DIR/skip.new"
             else
