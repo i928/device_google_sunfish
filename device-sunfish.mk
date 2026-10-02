@@ -127,8 +127,6 @@ PRODUCT_PACKAGES += \
     libprotobuf-cpp-full-3.9.1-vendorcompat \
     libprotobuf-cpp-lite-3.9.1-vendorcompat
 
-# Explicitly drop the modern tracing daemon due to 4.14 kernel limitations
-PRODUCT_PACKAGES_FILTER_OUT += com.android.uprobestats
 
 # Enable adb over USB by default. adb root itself comes from lineage_sunfish.mk
 # (PRODUCT_NOT_DEBUGGABLE_IN_USERDEBUG := false) + init.adb-root.rc.
