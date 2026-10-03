@@ -1,7 +1,5 @@
 on post-fs-data
     mkdir /data/adb 0755 root root
-    mkdir /data/adb/cron 0755 root root
-    mkdir /data/adb/cron/crontabs 0755 root root
     mkdir /data/adb/boot-completed.d 0755 root root
 
     copy /system_ext/etc/data-adb-seed/daily_clean.sh /data/adb/daily_clean.sh
@@ -12,3 +10,7 @@ on post-fs-data
 
     copy /system_ext/etc/data-adb-seed/boot-completed.d/daily_clean_timer.sh /data/adb/boot-completed.d/daily_clean_timer.sh
     chmod 0755 /data/adb/boot-completed.d/daily_clean_timer.sh
+
+    # Empty dirs left by the old crond setup (daily_clean_timer.sh replaced it).
+    rmdir /data/adb/cron/crontabs
+    rmdir /data/adb/cron

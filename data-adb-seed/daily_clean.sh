@@ -5,7 +5,11 @@
 START_TIME=$(date +%s)
 # =====================================================================
 # F2FS User-Mode Compression & Automated Cache Maintenance Script
-# Target: Android 16 (Evolution X 11) - Pixel 4a (sunfish)
+# Shared by sunfish (Pixel 4a, Evolution X 11) and crosshatch (Pixel 3 XL,
+# LineageOS 22.2): keep both device trees' copies identical.
+#
+# Started hourly by boot-completed.d/daily_clean_timer.sh; does work only in
+# the 04:00 hour, so it can also be run by hand at that time.
 # =====================================================================
 
 CURRENT_DAY=$(date +%u)
@@ -37,6 +41,7 @@ if [ ! -d "$LOG_DIR" ]; then
     echo "[INFO] Creating directory topology at $LOG_DIR..." >> "$LOG_FILE"
 fi
 F2FS_IO="/product/bin/f2fs_io"
+[ -x "$F2FS_IO" ] || F2FS_IO="/system/bin/f2fs_io"
 
 
 echo "=== F2FS optimization cycle initiated: $(date) ===" >> "$LOG_FILE"
@@ -103,7 +108,9 @@ fi
 #     and mtime (an mtime change makes PackageManager treat the apk as modified).
 #
 # Requires the kernel fix "f2fs: redirty_blocks: use read_mapping_page() on
-# 4.14" -- without it F2FS_IOC_COMPRESS_FILE panics (CFI, NULL filler).
+# 4.14" (sunfish) or the msm-4.9 compression port "f2fs: port data
+# compression (compress_mode=user) to 4.9" (crosshatch) -- with a NULL
+# read_cache_page() filler F2FS_IOC_COMPRESS_FILE panics under CFI.
 #
 # No am force-stop and no drop_caches here: force-stopping each package also
 # stopped gms, webview, the keyboard and the launcher, and drop_caches throws
