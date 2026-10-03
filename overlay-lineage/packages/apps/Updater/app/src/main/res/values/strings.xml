@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-     OTA feed for Evolution X's Updater (org.evolution.updater). It reads only
-     this string; a lineage.updater.uri property is ignored. The SourceForge
-     "/download" suffix redirects to the raw file (without it: an HTML page).
+     Evolution X's Updater (org.evolution.updater) reads its OTA feed and
+     changelog only from these strings (a lineage.updater.uri property is
+     ignored). Our fork github.com/i928/OTA, branch bka, same layout as
+     Evolution-X/OTA: builds/<device>.json, changelogs/<device>.txt.
+     ~/bin/deploy_evo_ota.sh writes and pushes builds/<device>.json.
 -->
-<resources>
-    <string name="updater_server_url" translatable="false">https://sourceforge.net/projects/androidos/files/sunfish/android16/sunfish.json/download</string>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="updater_server_url" translatable="false">https://raw.githubusercontent.com/i928/OTA/bka/builds/{device}.json</string>
+    <string name="menu_changelog_url" translatable="false">https://raw.githubusercontent.com/i928/OTA/bka/changelogs/<xliff:g id="device_name">%1$s</xliff:g>.txt</string>
 </resources>
