@@ -1,7 +1,8 @@
 #!/system/bin/sh
 
-# Initialize the process timer register natively
-START_TIME=$SECONDS
+# Wall-clock start time. $SECONDS stays 0 when daily_clean_timer.sh starts this
+# (both timer-started 04:01 runs logged "0m 0s"), so use date.
+START_TIME=$(date +%s)
 # =====================================================================
 # F2FS User-Mode Compression & Automated Cache Maintenance Script
 # Target: Android 16 (Evolution X 11) - Pixel 4a (sunfish)
@@ -236,7 +237,7 @@ if [ -f "$TALLY" ]; then
     rm -f "$TALLY"
 fi
 
-ELAPSED_TOTAL=$((SECONDS - START_TIME))
+ELAPSED_TOTAL=$(( $(date +%s) - START_TIME ))
 {
     echo "[SUCCESS] F2FS optimization cycle finalized."
     echo ">> Files Compressed This Run: $compressed_count"
