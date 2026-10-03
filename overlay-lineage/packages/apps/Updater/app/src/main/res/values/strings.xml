@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     OTA feed for Evolution X's Updater (org.evolution.updater). It reads only
+     this string; a lineage.updater.uri property is ignored. The SourceForge
+     "/download" suffix redirects to the raw file (without it: an HTML page).
+-->
+<resources>
+    <string name="updater_server_url" translatable="false">https://sourceforge.net/projects/androidos/files/sunfish/android16/sunfish.json/download</string>
+</resources>
