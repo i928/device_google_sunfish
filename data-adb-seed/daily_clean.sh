@@ -8,18 +8,32 @@ START_TIME=$(date +%s)
 # Shared by sunfish (Pixel 4a, Evolution X 11) and crosshatch (Pixel 3 XL,
 # LineageOS 22.2): keep both device trees' copies identical.
 #
-# Started hourly by boot-completed.d/daily_clean_timer.sh; does work only in
-# the 04:00 hour, so it can also be run by hand at that time.
+# Started every 10 minutes by boot-completed.d/daily_clean_timer.sh; runs
+# once a day, at the first chance between 04:00 and 08:59. Run it by hand at
+# any time with: FORCE=1 sh /data/adb/daily_clean.sh
 # =====================================================================
 
 CURRENT_DAY=$(date +%u)
 CURRENT_HOUR=$(date +%H)
+TODAY=$(date +%F)
+STAMP=/data/adb/.daily_clean.last
 
-# Restrict the heavy optimization workload to run only during off-peak hours (04:00 AM)
-# if [ "$CURRENT_DAY" != "7" ] || [ "$CURRENT_HOUR" != "04" ]; then
-if [ "$CURRENT_HOUR" != "04" ]; then
-    exit 0
+# Off-peak window, once per day. Not "only in the 04:00 hour": the timer's
+# sleep stops counting while the phone is in deep sleep (crosshatch spent 9 of
+# 16.5 h suspended on 2026-10-04/05), so its wake-up can land hours late and a
+# one-hour window was simply missed. The stamp makes a late wake-up still run,
+# exactly once.
+if [ -z "$FORCE" ]; then
+    [ "$CURRENT_HOUR" -ge 4 ] && [ "$CURRENT_HOUR" -lt 9 ] || exit 0
+    [ "$(cat "$STAMP" 2>/dev/null)" = "$TODAY" ] && exit 0
 fi
+echo "$TODAY" > "$STAMP"
+
+# Keep the CPU awake for the whole run; without a wake lock a 12-minute
+# compression pass gets stretched across deep sleep.
+WAKE_LOCK=daily_clean
+echo "$WAKE_LOCK" > /sys/power/wake_lock 2>/dev/null
+trap 'echo "$WAKE_LOCK" > /sys/power/wake_unlock 2>/dev/null' EXIT
 
 # 1. Enforce strict absolute paths for background/headless reliability
 PATH="/system/bin:/system/xbin:/product/bin:/apex/com.android.runtime/bin"
