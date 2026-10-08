@@ -11,6 +11,9 @@ on post-fs-data
     copy /system_ext/etc/data-adb-seed/boot-completed.d/daily_clean_timer.sh /data/adb/boot-completed.d/daily_clean_timer.sh
     chmod 0755 /data/adb/boot-completed.d/daily_clean_timer.sh
 
+    copy /system_ext/etc/data-adb-seed/boot-completed.d/wifi_bootcheck.sh /data/adb/boot-completed.d/wifi_bootcheck.sh
+    chmod 0755 /data/adb/boot-completed.d/wifi_bootcheck.sh
+
     # Empty dirs left by the old crond setup (daily_clean_timer.sh replaced it).
     rmdir /data/adb/cron/crontabs
     rmdir /data/adb/cron

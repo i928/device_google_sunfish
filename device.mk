@@ -92,6 +92,7 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/data-adb-seed/daily_clean.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/daily_clean.sh \
     $(LOCAL_PATH)/data-adb-seed/boot-completed.d/low_battery_shutdown.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/boot-completed.d/low_battery_shutdown.sh \
     $(LOCAL_PATH)/data-adb-seed/boot-completed.d/daily_clean_timer.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/boot-completed.d/daily_clean_timer.sh \
+    $(LOCAL_PATH)/data-adb-seed/boot-completed.d/wifi_bootcheck.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/boot-completed.d/wifi_bootcheck.sh \
 
 # Partitions
 PRODUCT_PACKAGES += \
