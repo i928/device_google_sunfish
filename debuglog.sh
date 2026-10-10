@@ -8,12 +8,17 @@
 #   enable:   adb shell 'mount /metadata; touch /metadata/start.txt'
 #   disable:  adb shell 'mount /metadata; rm /metadata/start.txt'
 #   read:     adb shell 'mount /metadata'; adb pull /metadata/log.txt
+#             (previous boot: /metadata/prev.txt)
 #
 # Doing nothing is the default -- with no start.txt this exits immediately.
 
 [ -f /metadata/start.txt ] || exit 0
 
-rm -f /metadata/log.txt /metadata/log.txt.1 /metadata/log.txt.2
+# Keep the previous boot's newest log as prev.txt(.1): a boot that hung is
+# usually followed by a rescue boot, which would otherwise wipe its log.
+rm -f /metadata/prev.txt /metadata/prev.txt.1 /metadata/log.txt.2
+[ -f /metadata/log.txt ] && mv /metadata/log.txt /metadata/prev.txt
+[ -f /metadata/log.txt.1 ] && mv /metadata/log.txt.1 /metadata/prev.txt.1
 
 # /metadata is only 10MB and update_engine needs room in /metadata/ota for OTA
 # snapshot state -- an unbounded log fills it and makes sideload fail with
