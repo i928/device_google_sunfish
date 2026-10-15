@@ -31,6 +31,9 @@ PRODUCT_SYSTEM_SERVER_COMPILER_FILTER := speed-profile
 WITH_DEXPREOPT := true
 DEX_PREOPT_DEFAULT := generate-vdex-and-image
 WITH_DEXPREOPT_DEBUG_INFO := false
+# TEMP (2026-10-15, boot profiling): DWARF/symbols in system_server's odex so simpleperf
+# can name its Java frames (PackageManager /data scan updateSettings 2.3 s). Remove after.
+PRODUCT_SYSTEM_SERVER_DEBUG_INFO := true
 
 # Enable AAudio MMAP/NOIRQ data path.
 # 1 is AAUDIO_POLICY_NEVER  means only use Legacy path.
