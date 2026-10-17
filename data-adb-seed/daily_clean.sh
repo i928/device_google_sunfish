@@ -11,6 +11,9 @@ START_TIME=$(date +%s)
 # Started every 10 minutes by boot-completed.d/daily_clean_timer.sh; runs
 # once a day, at the first chance between 04:00 and 08:59. Run it by hand at
 # any time with: FORCE=1 sh /data/adb/daily_clean.sh
+#
+# The log keeps one summary per run (plus real failures); per-file lines are
+# not written, so the log stays small.
 # =====================================================================
 
 CURRENT_DAY=$(date +%u)
@@ -142,7 +145,7 @@ TALLY="/data/local/tmp/.f2fs_tally"
 SKIP_LIST="/data/adb/f2fs_compress_skip.list"
 
 # Mark the target directory for future inheritance.
-"$F2FS_IO" setflags compression "$MANAGED_DIR" >> "$LOG_FILE" 2>&1
+"$F2FS_IO" setflags compression "$MANAGED_DIR" > /dev/null 2>> "$LOG_FILE"
 
 rm -f "$TALLY"
 mkdir -p "$TMP_DIR"
@@ -197,7 +200,7 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
                     released=$(compress_release_quiet "$file") || released=0
                 fi
                 if [ "$released" -gt 0 ]; then
-                    echo "Recompressed: $file" >> "$LOG_FILE"
+                    echo x >> "$TMP_DIR/n_recompressed"
                     c_count=0; r_total=0
                     [ -f "$TALLY" ] && read -r c_count r_total < "$TALLY"
                     echo "$((c_count + 1)) $((r_total + released))" > "$TALLY"
@@ -212,9 +215,9 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
             fi
             continue
         fi
-        echo "In place: $file" >> "$LOG_FILE"
+        echo x >> "$TMP_DIR/n_inplace"
     else
-        echo "Copy: $file" >> "$LOG_FILE"
+        echo x >> "$TMP_DIR/n_copied"
         tmp_file="$TMP_DIR/$(basename "$file").tmp"
         rm -f "$tmp_file"; touch "$tmp_file"
         if ! "$F2FS_IO" setflags compression "$tmp_file" >> "$LOG_FILE" 2>&1 ||
@@ -247,6 +250,10 @@ done
 skipped_einval=0
 [ -f "$TMP_DIR/einval" ] && skipped_einval=$(wc -l < "$TMP_DIR/einval")
 skip_listed=$(wc -l < "$TMP_DIR/skip.new")
+n_inplace=0; n_copied=0; n_recompressed=0
+[ -f "$TMP_DIR/n_inplace" ] && n_inplace=$(wc -l < "$TMP_DIR/n_inplace")
+[ -f "$TMP_DIR/n_copied" ] && n_copied=$(wc -l < "$TMP_DIR/n_copied")
+[ -f "$TMP_DIR/n_recompressed" ] && n_recompressed=$(wc -l < "$TMP_DIR/n_recompressed")
 mv -f "$TMP_DIR/skip.new" "$SKIP_LIST"
 rm -rf "$TMP_DIR"
 sync
@@ -261,7 +268,7 @@ fi
 ELAPSED_TOTAL=$(( $(date +%s) - START_TIME ))
 {
     echo "[SUCCESS] F2FS optimization cycle finalized."
-    echo ">> Files Compressed This Run: $compressed_count"
+    echo ">> Files Compressed This Run: $compressed_count (in place $n_inplace, copied $n_copied, recompressed $n_recompressed)"
     echo ">> Released Earlier Without Gain: $skip_listed on the skip list ($skipped_einval new)"
     echo ">> Reclaimed Storage Blocks: $released_blocks_total"
     echo ">> Estimated Space Savings: $((released_blocks_total * 4 / 1024)) MiB"
