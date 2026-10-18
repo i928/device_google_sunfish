@@ -93,6 +93,7 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/data-adb-seed/boot-completed.d/low_battery_shutdown.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/boot-completed.d/low_battery_shutdown.sh \
     $(LOCAL_PATH)/data-adb-seed/boot-completed.d/daily_clean_timer.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/boot-completed.d/daily_clean_timer.sh \
     $(LOCAL_PATH)/data-adb-seed/boot-completed.d/revanced_yt_client.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/boot-completed.d/revanced_yt_client.sh \
+    $(LOCAL_PATH)/data-adb-seed/boot-completed.d/release_hide_apps.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/boot-completed.d/release_hide_apps.sh \
     $(LOCAL_PATH)/data-adb-seed/boot-completed.d/wifi_bootcheck.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/boot-completed.d/wifi_bootcheck.sh \
 
 # Partitions
@@ -704,6 +705,26 @@ SUNFISH_RELEASE_LIST := $(shell sed -e 's/#.*//' device/google/sunfish/release.t
 sunfish-release-filter = $(foreach f,$(1),\
     $(if $(strip $(foreach e,$(SUNFISH_RELEASE_LIST),$(findstring $(e),$(notdir $(f))))),$(f)))
 
+# Transition for preinstalled apps that release.txt leaves out. Removing an app
+# from /product makes PackageManager delete it, data included, on the phones of
+# existing users. While SUNFISH_RELEASE_TRANSITION=1, a release build still
+# bakes every extra app, and ro.sunfish.release_hidden_apps names the ones
+# release.txt leaves out: data-adb-seed's release_hide_apps.sh uninstalls them
+# for user 0 on the first boot after a wipe (not yet provisioned), so new users
+# never see them, while a phone updated over the air keeps them. Set it to 0
+# once existing users have had time to move: those apps then leave /product.
+SUNFISH_RELEASE_TRANSITION ?= 1
+ifeq ($(SUNFISH_RELEASE)$(SUNFISH_RELEASE_TRANSITION),11)
+sunfish_empty :=
+sunfish_space := $(sunfish_empty) $(sunfish_empty)
+sunfish_comma := ,
+SUNFISH_HIDDEN_APPS := $(foreach f,\
+    $(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/*.apk device/google/sunfish/prebuilts/extra-apps/prebuilt/*.apks),\
+    $(if $(strip $(call sunfish-release-filter,$(f))),,$(basename $(notdir $(f)))))
+PRODUCT_PRODUCT_PROPERTIES += \
+    ro.sunfish.release_hidden_apps=$(subst $(sunfish_space),$(sunfish_comma),$(strip $(SUNFISH_HIDDEN_APPS)))
+endif
+
 ifeq ($(BISECT_ONLY_KSU),1)
 # Fast-iteration mode for kernel/KSU bisect testing (export BISECT_ONLY_KSU=1
 # before lunch/mka): ship only KernelSUNext, skipping the other ~19 prebuilt
@@ -711,7 +732,7 @@ ifeq ($(BISECT_ONLY_KSU),1)
 # build -- don't use this for "does everything still work" testing.
 USER_APPS_BP := $(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/KernelSUNext.apk)
 PRODUCT_PACKAGES += $(foreach apk,$(USER_APPS_BP),$(basename $(notdir $(apk))))
-else ifeq ($(SUNFISH_RELEASE),1)
+else ifeq ($(SUNFISH_RELEASE)$(SUNFISH_RELEASE_TRANSITION),10)
 # Only what release.txt names. Gboard ships as an .apks app set and needs its
 # privapp-permissions xml listed too, or it crashes on launch.
 USER_APPS_BP := $(call sunfish-release-filter,\
@@ -746,8 +767,9 @@ endif
 -include device/google/sunfish/prebuilts/extra-apps/jni-libs.mk
 # jni-libs.mk lists every app's libs; in a release build drop those of apps
 # release.txt leaves out (jni/<app>/ is named after <app>.apk), or /product
-# gets lib folders with no apk beside them.
-ifeq ($(SUNFISH_RELEASE),1)
+# gets lib folders with no apk beside them. (Not during the transition, which
+# still bakes every app.)
+ifeq ($(SUNFISH_RELEASE)$(SUNFISH_RELEASE_TRANSITION),10)
 SUNFISH_JNI_DROP := $(foreach a,$(notdir $(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/jni/*)),\
     $(if $(strip $(call sunfish-release-filter,$(a).apk)),,$(a)))
 PRODUCT_COPY_FILES := $(foreach f,$(PRODUCT_COPY_FILES),\
