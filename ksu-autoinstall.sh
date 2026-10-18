@@ -27,6 +27,24 @@
 #           [REBOOT CMD]
 #   boot 2: [SCRIPT TRIGGERED] -> [MODULES ACTIVE] 8 -> [NOTHING TO DO]
 
+# --seed: run by init.ksu-autoinstall.rc at post-fs-data from the ROM copy
+# (/system_ext/bin) to put this script into /data/adb/service.d, where ksud's
+# services stage runs it. The service.d copy is replaced when missing or when
+# it is still what was seeded last time (record below), so a ROM update brings
+# its new script while a copy edited on the device survives. Phones seeded
+# before the record existed have none, so their copy is replaced once. (This
+# lives here, not in an `exec sh -c` in the rc: init expands `$` in exec
+# arguments a second time when it starts the service, and aborts it.)
+if [ "$1" = --seed ]; then
+	D=/data/adb/service.d/ksu-autoinstall.sh
+	S=/data/adb/.ksu-autoinstall/seeded-ksu-autoinstall.sh
+	mkdir -p /data/adb/service.d /data/adb/.ksu-autoinstall
+	if [ ! -f "$D" ] || [ ! -f "$S" ] || cmp -s "$D" "$S"; then
+		cp "$0" "$D" && chmod 0755 "$D" && cp "$0" "$S"
+	fi
+	exit 0
+fi
+
 LOG=/data/adb/ksu-autoinstall.log
 log() {
 	echo "$(date +%H:%M:%S) - $*" >> "$LOG"
