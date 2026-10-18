@@ -18,6 +18,7 @@ Hybrid-Mount
 
 # Apps
 AuroraStore
+MicroG
 Gboard
 privapp-permissions-gboard.xml
 KernelSUNext
