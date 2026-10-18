@@ -8,11 +8,10 @@
 # Anything not listed is left out, which is how the personal-only pieces
 # (shell-root.allowlist, ksu_script.sh) stay out of a published build.
 
-# KernelSU modules -- everything except errlog, which is a debug capture tool
+# KernelSU modules -- not errlog (debug capture) or Vector: those are personal-build only
 ReZygisk
 AlwaysStrong
 HMA-OSS
-Vector
 bindhosts
 susfs
 Hybrid-Mount
