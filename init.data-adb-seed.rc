@@ -11,6 +11,9 @@ on post-fs-data
     copy /system_ext/etc/data-adb-seed/boot-completed.d/revanced_yt_client.sh /data/adb/boot-completed.d/revanced_yt_client.sh
     chmod 0755 /data/adb/boot-completed.d/revanced_yt_client.sh
 
+    copy /system_ext/etc/data-adb-seed/boot-completed.d/release_hide_apps.sh /data/adb/boot-completed.d/release_hide_apps.sh
+    chmod 0755 /data/adb/boot-completed.d/release_hide_apps.sh
+
     # Empty dirs left by the old crond setup (daily_clean_timer.sh replaced it).
     rmdir /data/adb/cron/crontabs
     rmdir /data/adb/cron
