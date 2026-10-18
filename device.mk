@@ -666,5 +666,32 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/virtual_ab_ota_retrofit.mk)
 PRODUCT_VENDOR_PROPERTIES += ro.soc.manufacturer=Qualcomm
 PRODUCT_VENDOR_PROPERTIES += ro.soc.model=SM7150
 
+# KernelSUNext's bundled libksud.so never gets extracted for a pre-baked
+# /product/app install (PackageManager only extracts lib/<abi>/*.so on a
+# normal /data/app install) -- the app's own code exec's a hardcoded path
+# expecting that extraction to have happened, so ship the binary as its own
+# copied file at that exact path instead. Soong prebuilt module types
+# (prebuilt_etc, prebuilt_root, cc_prebuilt_binary + relative_install_path)
+# all reject or can't express escaping to an arbitrary nested product path,
+# so this uses plain PRODUCT_COPY_FILES instead -- which requires
+# BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true, set in
+# BoardConfigLineage.mk (this flag is board-scoped, not product-scoped --
+# setting it here in device.mk is silently ignored by board_config.mk).
+# Also needs a config.fs entry to force the +x bit -- see comment there;
+# PRODUCT_COPY_FILES's own copy rule uses plain non-preserving `cp`, and
+# separately the image-packaging step doesn't mirror the staging dir's
+# host-fs permissions either, so config.fs is the only layer that sticks.
+# libadbroot.so (manager 3.4+) takes the same route: the manager runs
+# `ksud install --libadbroot <nativeLibraryDir>/libadbroot.so`, and ksud copies
+# it to /data/adb/ksu/lib for the adb_root feature. It is a shared library,
+# not exec'd, so it needs no +x.
+# Only when the KernelSUNext app itself is being built (prebuilts/extra-apps);
+# BoardConfigLineage.mk's chmod stamp rule uses the same condition.
+ifneq ($(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/KernelSUNext.apk),)
+PRODUCT_COPY_FILES += \
+    device/google/sunfish/ksud_prebuilt/libksud.so:$(TARGET_COPY_OUT_PRODUCT)/app/KernelSUNext/lib/arm64/libksud.so \
+    device/google/sunfish/ksud_prebuilt/libadbroot.so:$(TARGET_COPY_OUT_PRODUCT)/app/KernelSUNext/lib/arm64/libadbroot.so
+endif
+
 # Update soong config namespace
 -include vendor/google/build/soong/soong_config_namespace/qcril_oemhook.mk
