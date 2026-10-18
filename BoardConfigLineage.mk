@@ -29,6 +29,11 @@ BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := erofs
 # SELinux
 BOARD_SEPOLICY_DIRS += device/google/sunfish/sepolicy-lineage/dynamic
 BOARD_SEPOLICY_DIRS += device/google/sunfish/sepolicy-lineage/vendor
+# prebuilts/extra-apps is untracked local content (see device.mk); skip its
+# sepolicy when a freshly synced tree does not have it.
+ifneq ($(wildcard device/google/sunfish/prebuilts/extra-apps/sepolicy/file_contexts),)
+BOARD_SEPOLICY_DIRS += device/google/sunfish/prebuilts/extra-apps/sepolicy
+endif
 
 # Verified Boot
 ifneq ($(WITH_AVB),true)
