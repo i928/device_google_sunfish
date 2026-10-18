@@ -4,6 +4,24 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+# Evolution's BuildFingerprint override (vendor/lineage/config/evolution.mk)
+# stays ON. It replaces the fingerprint with google/mustang_beta/mustang:CANARY/
+# on every device that is not a currently-supported Pixel, "to fix RCS/Wallet".
+#
+# It was disabled here for a while, on the theory that a CANARY build is a beta
+# and therefore never Play-certified, so the device could not sign in. That was
+# wrong: Play sign-in does not depend on certification at all. Setting up with
+# wifi off and then signing in from inside the Play Store works on an
+# explicitly uncertified device -- verified on lopro's build, which carries this
+# same CANARY fingerprint, was never registered, reports "device is not
+# certified", and signs in fine. The certified A13 sunfish fingerprint bought
+# nothing, while RCS and Wallet stopped working.
+#
+# If this ever needs revisiting, the fix is a certified STABLE Pixel fingerprint
+# in evolution.mk, not a device-tree one: TARGET_ENABLE_FP_OVERRIDE would have
+# to be set BEFORE the inherit below, since evolution.mk reads it with ?= and
+# evaluates its ifeq immediately.
+
 # Inherit some common Lineage stuff.
 $(call inherit-product, vendor/lineage/config/common_full_phone.mk)
 
