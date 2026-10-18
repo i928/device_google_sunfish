@@ -14,11 +14,39 @@
 LIST=$(getprop ro.sunfish.release_hidden_apps)
 [ -n "$LIST" ] || exit 0
 MARK=/data/adb/.release_hide_apps.done
-[ -f "$MARK" ] && exit 0
 LOG=/data/adb/release_hide_apps.log
 log() {
 	echo "$(date '+%F %T') $*" >> "$LOG"
 }
+
+# Our own baked manager (KernelSUNext, package dev.i928.mgr) cannot manage
+# KernelSU in a release build: the kernel trusts only the official manager,
+# which install-apps.sh installs as a user app. So once the official one is
+# there, hide ours for user 0 on phones that are already set up too (once,
+# own marker; only its own settings go, root grants and modules live in
+# /data/adb). install-apps.sh runs in the same boot after setup, so wait for it,
+# detached, up to 10 minutes; otherwise the next boot tries again.
+MGR_MARK=/data/adb/.release_hide_mgr.done
+case ",$LIST," in
+*,KernelSUNext,*)
+	if [ ! -f "$MGR_MARK" ]; then
+		(
+		i=0
+		until pm path com.rifsxd.ksunext >/dev/null 2>&1 || [ "$i" -ge 120 ]; do
+			sleep 5
+			i=$((i + 1))
+		done
+		if pm path com.rifsxd.ksunext >/dev/null 2>&1; then
+			pm path dev.i928.mgr >/dev/null 2>&1 &&
+				log "KernelSUNext (dev.i928.mgr), official manager installed: $(pm uninstall --user 0 dev.i928.mgr 2>&1)"
+			: > "$MGR_MARK"
+		fi
+		) </dev/null >/dev/null 2>&1 &
+	fi
+	;;
+esac
+
+[ -f "$MARK" ] && exit 0
 
 if [ "$(settings get global device_provisioned 2>/dev/null)" = "1" ]; then
 	log "device already set up: keeping $LIST"
