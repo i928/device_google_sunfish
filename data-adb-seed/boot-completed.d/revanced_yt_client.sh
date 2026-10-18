@@ -23,6 +23,17 @@ MARK=/data/adb/.revanced_yt_client.done
 LOG=/data/adb/revanced_yt_client.log
 
 [ -f "$MARK" ] && exit 0
+
+# boot-completed.d runs as soon as sys.boot_completed=1, while user 0 is still
+# RUNNING_LOCKED: app data under /data/data is credential-encrypted until the
+# user unlocks (immediately on a phone without a lock screen, later with one).
+# So continue detached and wait for the unlock (up to 30 min; else next boot).
+(
+i=0
+until [ "$(getprop sys.user.0.ce_available)" = true ] || [ "$i" -ge 360 ]; do
+	sleep 5
+	i=$((i + 1))
+done
 # Not installed, or never opened: nothing to decide yet; try again next boot.
 grep -q '</map>' "$PREFS" 2>/dev/null || exit 0
 
@@ -50,3 +61,4 @@ sed "$expr" "$PREFS" > "$tmp" &&
 	echo "$(date '+%F %T') $KEY $was -> $NEW" >> "$LOG" &&
 	: > "$MARK"
 rm -f "$tmp"
+) </dev/null >/dev/null 2>&1 &
