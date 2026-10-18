@@ -1,0 +1,11 @@
+// The official KernelSU-Next manager (com.rifsxd.ksunext, signed by the
+// KernelSU-Next project), shipped untouched for install-apps.sh to install as
+// a normal user app after setup: it keeps its official signature and updates
+// itself. Only release builds (SUNFISH_RELEASE=1) include it (device.mk).
+prebuilt_etc {
+    name: "ksu_official_manager",
+    src: "KernelSUNext-official.apk",
+    filename: "KernelSUNext-official.apk",
+    sub_dir: "install-apps",
+    product_specific: true,
+}

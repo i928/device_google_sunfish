@@ -7,8 +7,8 @@ KernelSU-related here is optional. A tree without it still builds.
 ## Kernel and manager
 
 The kernel (`kernel/google/msm-4.14`) carries KernelSU-Next as the
-`KernelSU-Next` submodule (KernelSU-Next 3.4.1, UAPI 5). The kernel, `ksud`
-and the manager must all be 3.4.1.
+`KernelSU-Next` submodule (driver 3.4.1, UAPI 5). The kernel, `ksud` and the
+manager must speak the same UAPI (5: KernelSU-Next 3.4.1 and 3.4.2).
 
 | Kernel branch | Manager it trusts |
 |---|---|
@@ -22,12 +22,19 @@ KernelSU at all.
 
 The ROM side:
 
-- `ksud_prebuilt/libksud.so` is `ksud`, taken from the manager APK
-  (`lib/arm64-v8a/libksud.so`). `ksud_prebuilt/libadbroot.so` comes from the
-  same place. Both are copied to `/product/app/KernelSUNext/lib/arm64/`, because
-  Android never extracts native libraries for an app in `/product`.
-- The manager APK itself comes from `prebuilts/extra-apps` (see
-  `~/extraAPKs/run.sh` and `publish.sh`).
+- `ksud_prebuilt/libksud.so` is `ksud` and `ksud_prebuilt/libadbroot.so` its
+  adb-root library, both from the official KernelSU-Next 3.4.2 APK
+  (`lib/arm64-v8a/`). They ship in `/system_ext/etc/ksu/`, where
+  `init.ksu-autoinstall.rc` seeds `/data/adb/ksud` from, whatever manager is
+  installed.
+- Release builds (`SUNFISH_RELEASE=1`) bake no manager. They ship the official
+  manager APK, `ksu-official/KernelSUNext-official.apk` (untouched, official
+  signature), and `install-apps.sh` installs it as a normal user app after
+  setup, so it updates itself. Pair them with `pr-ksu`.
+- Personal builds bake the manager from `prebuilts/extra-apps` (see
+  `~/extraAPKs/run.sh` and `publish.sh`) into `/product/app/KernelSUNext`,
+  and the two libraries are also copied to its `lib/arm64/`, because Android
+  never extracts native libraries for an app in `/product`.
 
 ## Module autoinstall
 

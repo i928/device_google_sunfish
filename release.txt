@@ -16,9 +16,13 @@ bindhosts
 susfs
 Hybrid-Mount
 
-# Apps
+# install-apps.sh installs the official KernelSU-Next manager (ksu-official/,
+# shipped in every release build) and install-apps/ apks as user apps.
+install-apps
+
+# Apps (baked into /product). No KernelSUNext: release builds use the official
+# manager as a user app, not our baked one.
 AuroraStore
 MicroG
 Gboard
 privapp-permissions-gboard.xml
-KernelSUNext

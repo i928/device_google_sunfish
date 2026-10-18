@@ -785,12 +785,19 @@ PRODUCT_PACKAGES += $(foreach apk,$(USER_INSTALL_APKS),userapp_$(basename $(notd
 # `ksud install --libadbroot <nativeLibraryDir>/libadbroot.so`, and ksud copies
 # it to /data/adb/ksu/lib for the adb_root feature. It is a shared library,
 # not exec'd, so it needs no +x.
-# Only when the KernelSUNext app itself is being built (prebuilts/extra-apps);
-# BoardConfigLineage.mk's chmod stamp rule uses the same condition.
-ifneq ($(wildcard device/google/sunfish/prebuilts/extra-apps/prebuilt/KernelSUNext.apk),)
+# Only when the KernelSUNext app itself ships (extra-apps, after the release
+# filter); BoardConfigLineage.mk's chmod stamp rule uses the same condition.
+ifneq ($(filter %/KernelSUNext.apk,$(USER_APPS_BP)),)
 PRODUCT_COPY_FILES += \
     device/google/sunfish/ksud_prebuilt/libksud.so:$(TARGET_COPY_OUT_PRODUCT)/app/KernelSUNext/lib/arm64/libksud.so \
     device/google/sunfish/ksud_prebuilt/libadbroot.so:$(TARGET_COPY_OUT_PRODUCT)/app/KernelSUNext/lib/arm64/libadbroot.so
+endif
+
+# Release builds: the official KernelSU-Next manager (ksu-official/), installed
+# as a normal user app after setup by install-apps.sh, so it keeps its official
+# signature and updates itself. No manager is baked into /product.
+ifeq ($(SUNFISH_RELEASE),1)
+PRODUCT_PACKAGES += ksu_official_manager
 endif
 
 # ksud for init.ksu-autoinstall.rc, independent of any manager app: KernelSU
