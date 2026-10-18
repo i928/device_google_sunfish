@@ -6,9 +6,10 @@
 #   init: Command 'exec u:r:ksu:s0 root -- /data/adb/ksud post-fs-data'
 #         failed: Cannot find '/data/adb/ksud'
 # ...and the same for `services` and `boot-completed`. `copy` is a built-in init
-# command, so this needs no exec and no new sepolicy. It is the same binary the
-# manager would copy, shipped in this ROM, so it matches this kernel. Rewritten
-# every boot, which also repairs a deleted or truncated ksud.
+# command, so this needs no exec and no new sepolicy. It is the official ksud
+# shipped in this ROM (/system_ext/etc/ksu, see device.mk), so it matches this
+# kernel whichever manager is installed. Rewritten every boot, which also
+# repairs a deleted or truncated ksud.
 #
 # KSU's own post-fs-data exec (init.rc) runs before this action, so on the very
 # first boot after a wipe that stage is still skipped -- harmless, as there are
@@ -16,7 +17,7 @@
 # find it.
 on post-fs-data
     mkdir /data/adb 0700 root root
-    copy /product/app/KernelSUNext/lib/arm64/libksud.so /data/adb/ksud
+    copy /system_ext/etc/ksu/ksud /data/adb/ksud
     chmod 0755 /data/adb/ksud
     chown root root /data/adb/ksud
     # `ksud install` is what the manager runs on first launch: it unpacks
@@ -26,7 +27,7 @@ on post-fs-data
     # not /data/adb/ksud: install deletes /data/adb/ksud and copies its own
     # executable back over it, which fails when that is the file it runs from.
     # --libadbroot (ksud 3.4+) matches what the 3.4 manager passes.
-    exec u:r:ksu:s0 root -- /product/app/KernelSUNext/lib/arm64/libksud.so install --libadbroot /product/app/KernelSUNext/lib/arm64/libadbroot.so
+    exec u:r:ksu:s0 root -- /system_ext/etc/ksu/ksud install --libadbroot /system_ext/etc/ksu/libadbroot.so
     # First boot after a wipe: stage the module snapshot (in place of zip
     # installs); ksu-autoinstall.sh then does the one activation reboot.
     exec u:r:ksu:s0 root -- /system/bin/sh /system_ext/bin/ksu-snapshot.sh

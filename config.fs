@@ -40,6 +40,14 @@ value:2906
 # all four of mode/user/group/caps are required by fs_config_generator.py
 # for a path section to be recognized (caps alone being absent is enough
 # to make it fall through as an "Invalid section").
+# ksud seeded by init.ksu-autoinstall.rc (see device.mk), exec'd from there by
+# `ksud install`, so it must keep its +x bit in the image.
+[system_ext/etc/ksu/ksud]
+mode: 0755
+user: AID_ROOT
+group: AID_ROOT
+caps: 0
+
 [product/app/KernelSUNext/lib/arm64/libksud.so]
 mode: 0755
 user: AID_ROOT

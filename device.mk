@@ -793,6 +793,16 @@ PRODUCT_COPY_FILES += \
     device/google/sunfish/ksud_prebuilt/libadbroot.so:$(TARGET_COPY_OUT_PRODUCT)/app/KernelSUNext/lib/arm64/libadbroot.so
 endif
 
+# ksud for init.ksu-autoinstall.rc, independent of any manager app: KernelSU
+# needs /data/adb/ksud from the first boot, before a manager is opened, and
+# release builds bake no manager (the official one installs as a user app).
+# The official KernelSU-Next 3.4.2 (33355) ksud and libadbroot.so, taken from
+# its APK; config.fs makes ksud executable. ELF copies rely on
+# BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES (BoardConfigLineage.mk).
+PRODUCT_COPY_FILES += \
+    device/google/sunfish/ksud_prebuilt/libksud.so:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/ksu/ksud \
+    device/google/sunfish/ksud_prebuilt/libadbroot.so:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/ksu/libadbroot.so
+
 # Update soong config namespace
 -include vendor/google/build/soong/soong_config_namespace/qcril_oemhook.mk
 
