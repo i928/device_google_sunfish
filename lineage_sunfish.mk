@@ -26,8 +26,48 @@ PRODUCT_BUILD_PROP_OVERRIDES += \
     BuildFingerprint=google/sunfish/sunfish:13/TQ3A.230805.001.S1/10786265:user/release-keys \
     DeviceProduct=sunfish
 
-# Gapps
+# GApps: SUNFISH_GAPPS=full, mini (default) or none, e.g.
+#   SUNFISH_GAPPS=none m evolution
+# none is a de-Googled build (WITH_GMS=false). The other flags are stated
+# explicitly rather than left to defaults, so a file-level diff against another
+# sunfish tree shows what this build actually chose:
+#   EVO_BUILD_TYPE          vendor/lineage/config/version.mk defaults Unofficial
+#   TARGET_USES_PICO_GAPPS  unset means false; stated so the full/mini/pico
+#                           selection in common_full_phone.mk reads unambiguously
+#   TARGET_DISABLE_EPPE     false keeps enforce-product-packages-exist, i.e. a
+#                           missing requested package stays a build error
+SUNFISH_GAPPS ?= mini
+ifeq ($(filter full mini none,$(SUNFISH_GAPPS)),)
+$(error SUNFISH_GAPPS=$(SUNFISH_GAPPS): use full, mini or none)
+endif
+EVO_BUILD_TYPE := Unofficial
+TARGET_USES_PICO_GAPPS := false
+TARGET_DISABLE_EPPE := false
+
+ifeq ($(SUNFISH_GAPPS),none)
+WITH_GMS := false
+PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST += \
+    system/apex/com.google.android.permission.apex
+else
+WITH_GMS := true
+# Full adds 34 packages over mini (Photos, Recorder, SafetyHub, Tycho,
+# GooglePackageInstaller, DevicePolicy, Gemini...), not Gmail/Maps/Messages.
+ifeq ($(SUNFISH_GAPPS),full)
+TARGET_USES_MINI_GAPPS := false
+else
 TARGET_USES_MINI_GAPPS := true
+endif
+PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST += \
+    system/app/GoogleExtShared/GoogleExtShared.apk \
+    system/app/GooglePrintRecommendationService/GooglePrintRecommendationService.apk \
+    system/apex/com.google.android.permission.apex \
+    system/etc/permissions/privapp-permissions-google.xml \
+    system/etc/permissions/privapp_allowlist_com.google.android.ext.services.xml \
+    system/priv-app/GoogleExtServices/GoogleExtServices.apk \
+    system/priv-app/DocumentsUIGoogle/DocumentsUIGoogle.apk \
+    system/priv-app/TagGoogle/TagGoogle.apk \
+    system/priv-app/GooglePackageInstaller/GooglePackageInstaller.apk
+endif
 
 $(call inherit-product, vendor/google/sunfish/sunfish-vendor.mk)
 
