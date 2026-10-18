@@ -695,3 +695,13 @@ endif
 
 # Update soong config namespace
 -include vendor/google/build/soong/soong_config_namespace/qcril_oemhook.mk
+
+PRODUCT_PACKAGES += \
+    f2fs_io
+
+# Enable F2FS support for user images
+TARGET_USERIMAGES_USE_F2FS := true
+BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE := f2fs
+
+# Enable F2FS compression features for make_f2fs during image creation
+BOARD_USERDATAIMAGE_FILE_SYSTEM_COMPRESS := extra_attr,compression,inode_checksum,sb_checksum
