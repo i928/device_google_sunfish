@@ -761,6 +761,68 @@ endif
 # Update soong config namespace
 -include vendor/google/build/soong/soong_config_namespace/qcril_oemhook.mk
 
+# Setup instructions for everything below: KSU.md.
+# KernelSU module zips shipped with the ROM, installed once each by
+# init.ksu-autoinstall.rc after boot completes. The point is a wiped device:
+# fastboot -w erases /data and /sdcard, but /product survives, so the phone can
+# reinstall its modules with no transfers. ksu-autoinstall/ is untracked local
+# content like prebuilts/extra-apps above -- $(wildcard) yields nothing when the
+# directory is absent, so a freshly synced tree still builds.
+KSU_AUTOINSTALL_ZIPS := $(wildcard device/google/sunfish/ksu-autoinstall/*.zip)
+ifeq ($(SUNFISH_RELEASE),1)
+KSU_AUTOINSTALL_ZIPS := $(call sunfish-release-filter,$(KSU_AUTOINSTALL_ZIPS))
+endif
+PRODUCT_COPY_FILES += $(foreach z,$(KSU_AUTOINSTALL_ZIPS),\
+    $(z):$(TARGET_COPY_OUT_PRODUCT)/etc/ksu-autoinstall/$(notdir $(z)))
+
+# Boot scripts (not modules): copied to /data/adb/service.d, which KernelSU runs
+# on every boot.
+# Optional KernelSU allowlist snapshot: pre-grants root to the apps it lists
+# (com.android.shell, i.e. adb) on a wiped device. Local content -- do not ship
+# it in a build meant for anyone else.
+# Grants root to everything it lists, com.android.shell included, i.e. to anyone
+# with adb access -- so it ships only if release.txt names it.
+KSU_AUTOINSTALL_ALLOWLIST := $(wildcard device/google/sunfish/ksu-autoinstall/*.allowlist)
+ifeq ($(SUNFISH_RELEASE),1)
+KSU_AUTOINSTALL_ALLOWLIST := $(call sunfish-release-filter,$(KSU_AUTOINSTALL_ALLOWLIST))
+endif
+PRODUCT_COPY_FILES += $(foreach a,$(KSU_AUTOINSTALL_ALLOWLIST),\
+    $(a):$(TARGET_COPY_OUT_PRODUCT)/etc/ksu-autoinstall/$(notdir $(a)))
+
+KSU_AUTOINSTALL_SCRIPTS := $(wildcard device/google/sunfish/ksu-autoinstall/scripts/*.sh)
+ifeq ($(SUNFISH_RELEASE),1)
+KSU_AUTOINSTALL_SCRIPTS := $(call sunfish-release-filter,$(KSU_AUTOINSTALL_SCRIPTS))
+endif
+PRODUCT_COPY_FILES += $(foreach s,$(KSU_AUTOINSTALL_SCRIPTS),\
+    $(s):$(TARGET_COPY_OUT_PRODUCT)/etc/ksu-autoinstall/scripts/$(notdir $(s)))
+
+# Module snapshot: a finished install (modules/ + installer-created files +
+# SELinux label list), unpacked at post-fs-data on the first boot after a wipe
+# by ksu-snapshot.sh in place of zip installs (staged like `ksud module
+# install`; one activation reboot, as after zip installs). The zips it was
+# made from live in
+# ksu-autoinstall/installed-in-snapshot/, out of the *.zip wildcard above.
+KSU_SNAPSHOT := $(wildcard device/google/sunfish/ksu-autoinstall/snapshot/ksu-snapshot.tar.gz)
+ifeq ($(SUNFISH_RELEASE),1)
+KSU_SNAPSHOT := $(call sunfish-release-filter,$(KSU_SNAPSHOT))
+endif
+PRODUCT_COPY_FILES += $(foreach t,$(KSU_SNAPSHOT),\
+    $(t):$(TARGET_COPY_OUT_PRODUCT)/etc/ksu-autoinstall/$(notdir $(t)))
+
+PRODUCT_COPY_FILES += \
+    device/google/sunfish/ksu-snapshot.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/bin/ksu-snapshot.sh \
+    device/google/sunfish/ksu-autoinstall.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/bin/ksu-autoinstall.sh \
+    device/google/sunfish/init.ksu-autoinstall.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/init.ksu-autoinstall.rc
+
+# Reboot once after the zips are installed, so the modules are actually active.
+# A persist. default in build.prop applies exactly when /data/property has no
+# value yet -- i.e. right after a wipe, which is the case this exists for. The
+# script itself refuses to reboot until setup wizard has finished. The name is
+# kept under 31 chars, or the legacy property getter truncates it and reads
+# nothing.
+PRODUCT_PRODUCT_PROPERTIES += \
+    persist.sunfish.ksu_ai_reboot=1
+
 PRODUCT_PACKAGES += \
     f2fs_io
 
