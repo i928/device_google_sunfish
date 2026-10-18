@@ -86,6 +86,9 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/thermal-engine-$(PRODUCT_HARDWARE).conf:$(TARGET_COPY_OUT_VENDOR)/etc/thermal-engine-$(PRODUCT_HARDWARE).conf \
     $(LOCAL_PATH)/ueventd.rc:$(TARGET_COPY_OUT_VENDOR)/ueventd.rc \
     $(LOCAL_PATH)/init.ramoops.sh:$(TARGET_COPY_OUT_VENDOR)/bin/init.ramoops.sh \
+    $(LOCAL_PATH)/init.data-adb-seed.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/init.data-adb-seed.rc \
+    $(LOCAL_PATH)/data-adb-seed/daily_clean.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/daily_clean.sh \
+    $(LOCAL_PATH)/data-adb-seed/boot-completed.d/daily_clean_timer.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/boot-completed.d/daily_clean_timer.sh \
 
 # Partitions
 PRODUCT_PACKAGES += \
