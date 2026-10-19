@@ -15,10 +15,10 @@ TARGET_KERNEL_SOURCE := kernel/google/msm-4.14
 # based on r547379) clang version 20.0.0"). Other choices, one line active:
 #   (unset)  LineageOS default kernel Clang
 #   clang 21 r574158, clang 22 r596125, clang 23 r614150
-TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r547379)
+#TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r547379)
 #TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r574158)
 #TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r596125)
-#TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r614150)
+TARGET_KERNEL_CLANG_PATH := $(abspath prebuilts/clang/host/$(HOST_PREBUILT_TAG)/clang-r614150)
 TARGET_NEEDS_DTBOIMAGE := true
 
 # Partitions
