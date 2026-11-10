@@ -12,8 +12,9 @@ START_TIME=$(date +%s)
 # once a day, at the first chance between 04:00 and 08:59. Run it by hand at
 # any time with: FORCE=1 sh /data/adb/daily_clean.sh
 #
-# The log keeps one summary per run (plus real failures); per-file lines are
-# not written, so the log stays small.
+# The log keeps one summary per run, then one short line per file compressed
+# (package/file, e.g. com.android.vending/base.apk; no /data/app path), plus
+# real failures.
 # =====================================================================
 
 CURRENT_DAY=$(date +%u)
@@ -138,6 +139,8 @@ fi
 MANAGED_DIR="/data/app"
 TMP_DIR="/data/local/tmp/f2fs_scratch"
 TALLY="/data/local/tmp/.f2fs_tally"
+# Per-file lines for the log, written by the pipeline subshell below
+NAMES="/data/local/tmp/.f2fs_names"
 # Files released without gain earlier: compress refuses them with EINVAL every
 # run and nothing tells them apart from untouched files, so they are listed
 # here and skipped. Rewritten each run with only the paths still present (an
@@ -147,12 +150,28 @@ SKIP_LIST="/data/adb/f2fs_compress_skip.list"
 # Mark the target directory for future inheritance.
 "$F2FS_IO" setflags compression "$MANAGED_DIR" > /dev/null 2>> "$LOG_FILE"
 
-rm -f "$TALLY"
+rm -f "$TALLY" "$NAMES"
 mkdir -p "$TMP_DIR"
 rm -f "$TMP_DIR/einval"
 : > "$TMP_DIR/skip.new"
 [ -f "$SKIP_LIST" ] || : > "$SKIP_LIST"
 echo "[INFO] Scanning for uncompressed targets within $MANAGED_DIR..." >> "$LOG_FILE"
+
+# /data/app/~~<rand>==/<pkg>-<rand>==/lib/arm64/x.so -> <pkg>/lib/arm64/x.so
+# (package names never contain '-'; the random suffix may)
+short_name() {
+    s=${1#"$MANAGED_DIR"/}
+    case "$s" in "~~"*/*) s=${s#*/} ;; esac
+    p=${s%%/*}
+    echo "${p%%-*}/${s#*/}"
+}
+
+# Log line for one compressed file: name and space released
+note_file() {
+    k=$(( $2 * 4 ))
+    if [ "$k" -ge 1024 ]; then sz="$((k / 1024)) MiB"; else sz="$k KiB"; fi
+    echo "  $3 $(short_name "$1") ($sz)" >> "$NAMES"
+}
 
 # compress + release one flagged file; prints the released block count
 compress_release() {
@@ -201,6 +220,7 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
                 fi
                 if [ "$released" -gt 0 ]; then
                     echo x >> "$TMP_DIR/n_recompressed"
+                    note_file "$file" "$released" recompressed
                     c_count=0; r_total=0
                     [ -f "$TALLY" ] && read -r c_count r_total < "$TALLY"
                     echo "$((c_count + 1)) $((r_total + released))" > "$TALLY"
@@ -208,14 +228,16 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
                 fi
                 echo x >> "$TMP_DIR/einval"
                 echo "$file" >> "$TMP_DIR/skip.new"
+                echo "  no gain, skip-listed $(short_name "$file")" >> "$NAMES"
             else
                 # Anything else (EBUSY, EOPNOTSUPP, ...) is logged and retried
                 # next run, never skip-listed.
-                echo "Compress failed: $file: $(cat "$TMP_DIR/err")" >> "$LOG_FILE"
+                echo "Compress failed: $(short_name "$file"): $(cat "$TMP_DIR/err")" >> "$LOG_FILE"
             fi
             continue
         fi
         echo x >> "$TMP_DIR/n_inplace"
+        mode="in place"
     else
         echo x >> "$TMP_DIR/n_copied"
         tmp_file="$TMP_DIR/$(basename "$file").tmp"
@@ -232,13 +254,15 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
         chown "$(stat -c %u "$file"):$(stat -c %g "$file")" "$tmp_file" &&
         touch -r "$file" "$tmp_file" &&
         mv -f "$tmp_file" "$file" 2>> "$LOG_FILE" || {
-            echo "Failed to swap optimized file into place: $file" >> "$LOG_FILE"
+            echo "Failed to swap optimized file into place: $(short_name "$file")" >> "$LOG_FILE"
             rm -f "$tmp_file"; continue
         }
         restorecon "$file" 2>> "$LOG_FILE"
+        mode=copied
     fi
 
     if [ "$released" -gt 0 ]; then
+        note_file "$file" "$released" "$mode"
         c_count=0; r_total=0
         [ -f "$TALLY" ] && read -r c_count r_total < "$TALLY"
         echo "$((c_count + 1)) $((r_total + released))" > "$TALLY"
@@ -273,6 +297,7 @@ ELAPSED_TOTAL=$(( $(date +%s) - START_TIME ))
     echo ">> Reclaimed Storage Blocks: $released_blocks_total"
     echo ">> Estimated Space Savings: $((released_blocks_total * 4 / 1024)) MiB"
     echo ">> Execution Time: $((ELAPSED_TOTAL / 60))m $((ELAPSED_TOTAL % 60))s"
+    [ -f "$NAMES" ] && cat "$NAMES"
     echo "--------------------------------------------------------"
 } | tee -a "$LOG_FILE"
 
