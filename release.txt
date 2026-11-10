@@ -16,6 +16,7 @@ bindhosts
 susfs
 Hybrid-Mount
 lowbatt
+sysrevert
 
 # install-apps.sh installs the official KernelSU-Next manager (ksu-official/,
 # shipped in every release build) and install-apps/ apks as user apps.
