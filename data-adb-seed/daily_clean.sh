@@ -12,6 +12,9 @@ START_TIME=$(date +%s)
 # once a day, at the first chance between 04:00 and 08:59. Run it by hand at
 # any time with: FORCE=1 sh /data/adb/daily_clean.sh
 #
+# Before compressing, it moves system apps that Play reinstalled into /data at
+# the SAME version back to their ROM copy (Phase 1b).
+#
 # The log keeps one summary per run, then one short line per file compressed
 # (package/file, e.g. com.android.vending/base.apk; no /data/app path), plus
 # real failures.
@@ -83,6 +86,79 @@ case "$DATA_USED_PERCENT" in
       fi
       ;;
 esac
+
+# ---------------------------------------------------------------------
+# Phase 1b: Move same-version system app updates back to the ROM copy
+#
+# PackageManager replaces a /data update only with a STRICTLY newer system
+# version, so a ROM that bakes in the same version as the phone's /data copy
+# never wins it back. Play also reinstalls a system app into /data whenever it
+# wants a split the ROM copy lacks (a language split, e.g. split_config.zh on a
+# phone with a zh-Hant-TW locale). The /data copy costs space and reads slower
+# than EROFS.
+#
+# An app is moved back (cmd package uninstall-system-updates; data and
+# permissions are kept) only when BOTH hold:
+#   - /data versionCode == ROM versionCode, so a real update is never undone;
+#   - the ROM copy has every split the /data copy has, or Play would just
+#     reinstall it again.
+# It then gets compiled (speed-profile): an app set in the ROM has no dexpreopt.
+# Runs before Phase 3 so a moved-back app is not compressed first.
+# ---------------------------------------------------------------------
+REVERT_DIR="/data/local/tmp/.daily_revert"
+rm -rf "$REVERT_DIR"; mkdir -p "$REVERT_DIR"
+reverted_count=0
+: > "$REVERT_DIR/moved"
+
+# Split names of one installed copy, one per line, normalized so both naming
+# schemes compare: base.apk / <module>.apk -> base; split_config.X.apk,
+# split_X.apk, <module>-X.apk -> X. $1 = module name (the ROM directory name).
+split_names() {
+    while IFS= read -r f; do
+        b=${f##*/}; b=${b%.apk}
+        case "$b" in
+            base|"$1") echo base ;;
+            split_config.*) echo "${b#split_config.}" ;;
+            split_*) echo "${b#split_}" ;;
+            "$1"-*) echo "${b#"$1"-}" ;;
+            *) echo "$b" ;;
+        esac
+    done | sort
+}
+
+for pkg in $(cmd package list packages -s 2>/dev/null | sed 's/^package://'); do
+    dpath=$(cmd package path "$pkg" 2>/dev/null | sed -n '1s/^package://p')
+    case "$dpath" in /data/app/*) ;; *) continue ;; esac
+
+    # dumpsys lists the /data copy first, then the hidden system copy.
+    info=$(dumpsys package "$pkg" | awk '
+        /^ *codePath=/ { cp = substr($1, 10) }
+        /^ *versionCode=/ && cp != "" { split($1, a, "="); print cp, a[2]; cp = "" }')
+    dvc=$(echo "$info" | awk '$1 ~ "^/data/" { print $2; exit }')
+    sline=$(echo "$info" | awk '$1 !~ "^/data/" { print; exit }')
+    scp=${sline% *}; svc=${sline#* }
+    [ -n "$sline" ] && [ -d "$scp" ] || continue
+    [ "$dvc" = "$svc" ] || continue
+
+    mod=${scp##*/}
+    cmd package path "$pkg" | sed 's/^package://' | split_names "$mod" > "$REVERT_DIR/d"
+    ls "$scp"/*.apk 2>/dev/null | split_names "$mod" > "$REVERT_DIR/s"
+    missing=$(comm -23 "$REVERT_DIR/d" "$REVERT_DIR/s" | tr '\n' ' ')
+    if [ -n "$missing" ]; then
+        echo "[INFO] Keeping $pkg in /data: ROM copy lacks split(s): $missing" >> "$LOG_FILE"
+        continue
+    fi
+
+    r=$(cmd package uninstall-system-updates "$pkg" 2>&1)
+    case "$(cmd package path "$pkg" | sed -n '1s/^package://p')" in
+        /data/*) echo "[WARN] Could not move $pkg back to $scp: $r" >> "$LOG_FILE" ;;
+        *)
+            reverted_count=$((reverted_count + 1))
+            echo "  moved back $pkg (version $svc) to $scp" >> "$REVERT_DIR/moved"
+            cmd package compile -m speed-profile -f "$pkg" > /dev/null 2>&1
+            ;;
+    esac
+done
 
 # ---------------------------------------------------------------------
 # Phase 2: F2FS Structural Requirements Verification
@@ -296,10 +372,13 @@ ELAPSED_TOTAL=$(( $(date +%s) - START_TIME ))
     echo ">> Released Earlier Without Gain: $skip_listed on the skip list ($skipped_einval new)"
     echo ">> Reclaimed Storage Blocks: $released_blocks_total"
     echo ">> Estimated Space Savings: $((released_blocks_total * 4 / 1024)) MiB"
+    echo ">> Moved Back to ROM Copy: $reverted_count"
+    cat "$REVERT_DIR/moved"
     echo ">> Execution Time: $((ELAPSED_TOTAL / 60))m $((ELAPSED_TOTAL % 60))s"
     [ -f "$NAMES" ] && cat "$NAMES"
     echo "--------------------------------------------------------"
 } | tee -a "$LOG_FILE"
+rm -rf "$REVERT_DIR"
 
 # The log is written as root straight to /data/media, past the FUSE layer, so
 # MediaStore (USB/MTP, file managers) keeps the old size until it is rescanned.
