@@ -299,12 +299,16 @@ short_name() {
     echo "${p%%-*}/${s#*/}"
 }
 
-# Log line for one compressed file: name and space released
+# Log line for one compressed file: name and space released ($4: extra text)
 note_file() {
     k=$(( $2 * 4 ))
     if [ "$k" -ge 1024 ]; then sz="$((k / 1024)) MiB"; else sz="$k KiB"; fi
-    echo "  $3 $(short_name "$1") ($sz)" >> "$NAMES"
+    echo "  $3 $(short_name "$1") ($sz${4:+, $4})" >> "$NAMES"
 }
+
+# Uptime in milliseconds. Android's date has no %N and sh arithmetic is
+# 32-bit, so read /proc/uptime with awk.
+now_ms() { awk '{ printf "%d", $1 * 1000 }' /proc/uptime; }
 
 # compress + release one flagged file; prints the released block count
 compress_release() {
@@ -360,7 +364,7 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
     [ "$COMPRESS" = on ] || want=plain
     case "$NOCOMP" in *" ${name%%/*} "*) want=plain ;; esac
 
-    flagged=no
+    flagged=no; extra=
     "$F2FS_IO" getflags "$file" 2>/dev/null | grep -qw compression && flagged=yes
 
     if [ "$want" = plain ]; then
@@ -419,16 +423,23 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
         mode="in place"
     else
         # Unflagged, or flagged with another algorithm (zstd): re-create as lz4.
+        # A zstd -> lz4 conversion is timed (copy + compress + release + swap,
+        # not the pause between files): per file in its log line, in total in
+        # the summary.
+        t0=$(now_ms)
         released=$(recreate "$file" lz4) || continue
         if [ "$flagged" = yes ]; then
+            ms=$(( $(now_ms) - t0 ))
+            echo "$ms $(stat -c %s "$file")" >> "$TMP_DIR/conv_time"
             echo x >> "$TMP_DIR/n_converted"; mode="converted to lz4"
+            extra=$(awk -v m="$ms" 'BEGIN { printf "%.1f s", m / 1000 }')
         else
             echo x >> "$TMP_DIR/n_copied"; mode=copied
         fi
     fi
 
     if [ "$released" -gt 0 ]; then
-        note_file "$file" "$released" "$mode"
+        note_file "$file" "$released" "$mode" "$extra"
         c_count=0; r_total=0
         [ -f "$TALLY" ] && read -r c_count r_total < "$TALLY"
         echo "$((c_count + 1)) $((r_total + released))" > "$TALLY"
@@ -446,6 +457,12 @@ n_inplace=0; n_copied=0; n_recompressed=0; n_converted=0; n_plain=0
 [ -f "$TMP_DIR/n_recompressed" ] && n_recompressed=$(wc -l < "$TMP_DIR/n_recompressed")
 [ -f "$TMP_DIR/n_converted" ] && n_converted=$(wc -l < "$TMP_DIR/n_converted")
 [ -f "$TMP_DIR/n_plain" ] && n_plain=$(wc -l < "$TMP_DIR/n_plain")
+# zstd -> lz4: total time and size of the files converted this run
+conv_time="none"
+[ -s "$TMP_DIR/conv_time" ] && conv_time=$(awk '{ ms += $1; b += $2; n++ }
+    END { printf "%dm %.1fs for %d files, %d MiB (%.1f MiB/s)", ms / 60000,
+        (ms % 60000) / 1000, n, b / 1048576, ms ? b / 1048576 / (ms / 1000) : 0 }' \
+    "$TMP_DIR/conv_time")
 mv -f "$TMP_DIR/skip.new" "$SKIP_LIST"
 rm -rf "$TMP_DIR"
 sync
@@ -462,6 +479,7 @@ ELAPSED_TOTAL=$(( $(date +%s) - START_TIME ))
     echo "[SUCCESS] F2FS optimization cycle finalized."
     echo ">> Compression: $COMPRESS (KernelSU module f2fs_compress); /data mounted with $(grep -o 'compress_algorithm=[^,]*' /proc/mounts | head -n 1)"
     echo ">> Files Compressed This Run: $compressed_count (in place $n_inplace, copied $n_copied, converted to lz4 $n_converted, recompressed $n_recompressed)"
+    echo ">> zstd -> lz4 Conversion Time: $conv_time"
     echo ">> Converted Back to Plain: $n_plain"
     echo ">> Released Earlier Without Gain: $skip_listed on the skip list ($skipped_einval new)"
     echo ">> Reclaimed Storage Blocks: $released_blocks_total"
