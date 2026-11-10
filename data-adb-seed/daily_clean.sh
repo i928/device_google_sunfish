@@ -15,6 +15,13 @@ START_TIME=$(date +%s)
 # Before compressing, it moves system apps that Play reinstalled into /data at
 # the SAME version back to their ROM copy (Phase 1b).
 #
+# Compression is a switch: the "F2FS App Compression" KernelSU module
+# (id f2fs_compress) enabled = compress with lz4 (lz4hc level 9 with the
+# compress_algorithm=lz4:9 fstab); disabled or not installed = keep /data/app
+# plain. Apps listed in Download/F2FSCompressed/non-compression.txt are never
+# compressed. Files in the wrong state (zstd from older builds, compressed
+# while the switch is off or the app is listed) are converted on the next run.
+#
 # The log keeps one summary per run, then one short line per file compressed
 # (package/file, e.g. com.android.vending/base.apk; no /data/app path), plus
 # real failures.
@@ -183,7 +190,41 @@ if [ ! -x "$F2FS_IO" ]; then
 fi
 
 # ---------------------------------------------------------------------
-# Phase 3: Explicit Manual Compression Workloop (compress_mode=user)
+# Phase 3: Compression switch and the per-app exception list
+#
+# The switch is the KernelSU module f2fs_compress: compression is on only
+# while it is installed and enabled (no disable/remove marker). Without it,
+# /data/app stays plain: compressed data reads 1.6-5x slower than plain on
+# this hardware (2026-11-10, 16 KB clusters: plain 493, lz4 311, zstd 198
+# MiB/s on a big core), and the space saved is about 0.6-0.9 GB.
+# ---------------------------------------------------------------------
+COMPRESS_MODULE="/data/adb/modules/f2fs_compress"
+if [ -d "$COMPRESS_MODULE" ] && [ ! -f "$COMPRESS_MODULE/disable" ] &&
+   [ ! -f "$COMPRESS_MODULE/remove" ]; then
+    COMPRESS=on
+else
+    COMPRESS=off
+fi
+
+# Packages never compressed. In Download/ so it can be edited with a file
+# manager; seeded once with the old built-in exceptions (Shizuku, Magisk).
+NOCOMP_LIST="$LOG_DIR/non-compression.txt"
+if [ ! -f "$NOCOMP_LIST" ]; then
+    cat > "$NOCOMP_LIST" <<'EOF'
+# Apps whose files in /data/app are never compressed by daily_clean.sh.
+# Files of an app listed here that are already compressed are converted back
+# to plain on the next daily run.
+# One package name per line, e.g. com.google.android.gm; # starts a comment.
+moe.shizuku.privileged.api
+com.topjohnwu.magisk
+EOF
+    chown "$(stat -c %u:%g "$LOG_DIR")" "$NOCOMP_LIST" 2>/dev/null
+    chmod 664 "$NOCOMP_LIST"
+fi
+NOCOMP=" $(sed 's/#.*//' "$NOCOMP_LIST" | tr -s ' \t\r' '\n' | grep -v '^$' | tr '\n' ' ') "
+
+# ---------------------------------------------------------------------
+# Phase 4: Per-file workloop (compress_mode=user)
 #
 # Only APKs and extracted native libraries under /data/app. They are read-only
 # and replaced whole on app updates, so release_cblocks is safe for them. After
@@ -192,14 +233,21 @@ fi
 # must never be released. chattr -p 0 is not used either: /data/media relies
 # on project IDs for per-app storage accounting.
 #
-# The kernel only sets the compression flag on a file with no data yet
-# (fs/f2fs/file.c: EINVAL if F2FS_HAS_BLOCKS). So:
-#   - files that inherited the flag (installed after /data/app was flagged)
-#     are compressed in place;
-#   - older files are copied into a fresh flagged file, compressed, and renamed
-#     over the original. Running processes keep the old inode until they close
-#     it, so no app has to be stopped. The copy keeps the original mode, owner
-#     and mtime (an mtime change makes PackageManager treat the apk as modified).
+# Each file is brought to its wanted state:
+#   - plain (switch off, or the app is in non-compression.txt): a file with
+#     the compression flag is re-created without it;
+#   - lz4 (switch on): a flagged lz4 file is compressed in place; a file that
+#     is unflagged, or flagged with another algorithm (zstd from older
+#     builds), is re-created as lz4 and compressed.
+# The kernel only sets or clears the compression flag on a file with no data
+# (fs/f2fs/file.c: EINVAL if F2FS_HAS_BLOCKS), and a file keeps the algorithm
+# it was flagged with, so changing either means re-creating the file: copy
+# into a fresh file, then rename it over the original. Running processes keep
+# the old inode until they close it, so no app has to be stopped. The copy
+# keeps the original mode, owner and mtime (an mtime change makes
+# PackageManager treat the apk as modified) and gets its label back.
+# A flagged file takes the mount's algorithm and level (lz4:9 = lz4hc 9);
+# set_coption makes it lz4 even while /data is still mounted with zstd.
 #
 # Requires the kernel fix "f2fs: redirty_blocks: use read_mapping_page() on
 # 4.14" (sunfish) or the msm-4.9 compression port "f2fs: port data
@@ -223,15 +271,24 @@ NAMES="/data/local/tmp/.f2fs_names"
 # app update gets a new /data/app path and is tried again).
 SKIP_LIST="/data/adb/f2fs_compress_skip.list"
 
-# Mark the target directory for future inheritance.
-"$F2FS_IO" setflags compression "$MANAGED_DIR" > /dev/null 2>> "$LOG_FILE"
+# New files inherit the directory flag: set it while compression is on, clear
+# it while off (on /data/app and every app directory, so new installs and
+# libraries extracted later are written fully plain).
+if [ "$COMPRESS" = on ]; then
+    "$F2FS_IO" setflags compression "$MANAGED_DIR" > /dev/null 2>> "$LOG_FILE"
+else
+    find "$MANAGED_DIR" -xdev -type d | while IFS= read -r d; do
+        "$F2FS_IO" getflags "$d" 2>/dev/null | grep -qw compression &&
+            "$F2FS_IO" clearflags compression "$d" > /dev/null 2>> "$LOG_FILE"
+    done
+fi
 
 rm -f "$TALLY" "$NAMES"
 mkdir -p "$TMP_DIR"
 rm -f "$TMP_DIR/einval"
 : > "$TMP_DIR/skip.new"
 [ -f "$SKIP_LIST" ] || : > "$SKIP_LIST"
-echo "[INFO] Scanning for uncompressed targets within $MANAGED_DIR..." >> "$LOG_FILE"
+echo "[INFO] Compression $COMPRESS; scanning $MANAGED_DIR..." >> "$LOG_FILE"
 
 # /data/app/~~<rand>==/<pkg>-<rand>==/lib/arm64/x.so -> <pkg>/lib/arm64/x.so
 # (package names never contain '-'; the random suffix may)
@@ -266,14 +323,60 @@ compress_release_quiet() {
     echo "$n"
 }
 
+# Re-create $1 as plain ($2 = plain) or lz4-compressed ($2 = lz4) and rename
+# it over the original; prints the released block count (0 for plain).
+recreate() {
+    tmp_file="$TMP_DIR/$(basename "$1").tmp"
+    rm -f "$tmp_file"; touch "$tmp_file"
+    if [ "$2" = lz4 ]; then
+        if ! "$F2FS_IO" setflags compression "$tmp_file" > /dev/null 2>> "$LOG_FILE" ||
+           ! "$F2FS_IO" set_coption 1 2 "$tmp_file" > /dev/null 2>> "$LOG_FILE"; then
+            rm -f "$tmp_file"; return 1
+        fi
+    fi
+    cat "$1" > "$tmp_file" 2>> "$LOG_FILE" || { rm -f "$tmp_file"; return 1; }
+    n=0
+    if [ "$2" = lz4 ]; then
+        n=$(compress_release "$tmp_file") || { rm -f "$tmp_file"; return 1; }
+    fi
+    # %a = octal permissions, %u = owner UID, %g = owner GID
+    chmod "$(stat -c %a "$1")" "$tmp_file" &&
+    chown "$(stat -c %u "$1"):$(stat -c %g "$1")" "$tmp_file" &&
+    touch -r "$1" "$tmp_file" &&
+    mv -f "$tmp_file" "$1" 2>> "$LOG_FILE" || {
+        echo "Failed to swap re-created file into place: $(short_name "$1")" >> "$LOG_FILE"
+        rm -f "$tmp_file"; return 1
+    }
+    # restorecon reports the file_contexts it loaded on stderr: keep the log clean
+    restorecon "$1" > /dev/null 2>&1 ||
+        echo "restorecon failed: $(short_name "$1")" >> "$LOG_FILE"
+    echo "$n"
+}
+
 find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k | while IFS= read -r file; do
 
-    # Enforce an explicit exception filter to protect tool runtimes (Magisk / Shizuku)
-    case "$file" in
-        *moe.shizuku*|*top.johnwu.magisk*) continue ;;
-    esac
+    name=$(short_name "$file")
+    want=lz4
+    [ "$COMPRESS" = on ] || want=plain
+    case "$NOCOMP" in *" ${name%%/*} "*) want=plain ;; esac
 
-    if "$F2FS_IO" getflags "$file" 2>/dev/null | grep -qw compression; then
+    flagged=no
+    "$F2FS_IO" getflags "$file" 2>/dev/null | grep -qw compression && flagged=yes
+
+    if [ "$want" = plain ]; then
+        [ "$flagged" = yes ] || continue
+        if recreate "$file" plain > /dev/null; then
+            echo x >> "$TMP_DIR/n_plain"
+            echo "  to plain $name" >> "$NAMES"
+        fi
+        usleep 200000 2>/dev/null || sleep 1
+        continue
+    fi
+
+    if [ "$flagged" = yes ]; then
+        alg=$("$F2FS_IO" get_coption "$file" 2>/dev/null | sed -n 's/.*algorithm:\([0-9]*\).*/\1/p')
+    fi
+    if [ "$flagged" = yes ] && [ "$alg" = 1 ]; then
         # Done already when it occupies less disk than its length (compressed
         # and released). get_cblocks cannot tell: release_cblocks resets the
         # file's compressed-block count to 0 (fs/f2fs/file.c).
@@ -304,37 +407,24 @@ find "$MANAGED_DIR" -xdev -type f \( -name '*.so' -o -name '*.apk' \) -size +15k
                 fi
                 echo x >> "$TMP_DIR/einval"
                 echo "$file" >> "$TMP_DIR/skip.new"
-                echo "  no gain, skip-listed $(short_name "$file")" >> "$NAMES"
+                echo "  no gain, skip-listed $name" >> "$NAMES"
             else
                 # Anything else (EBUSY, EOPNOTSUPP, ...) is logged and retried
                 # next run, never skip-listed.
-                echo "Compress failed: $(short_name "$file"): $(cat "$TMP_DIR/err")" >> "$LOG_FILE"
+                echo "Compress failed: $name: $(cat "$TMP_DIR/err")" >> "$LOG_FILE"
             fi
             continue
         fi
         echo x >> "$TMP_DIR/n_inplace"
         mode="in place"
     else
-        echo x >> "$TMP_DIR/n_copied"
-        tmp_file="$TMP_DIR/$(basename "$file").tmp"
-        rm -f "$tmp_file"; touch "$tmp_file"
-        if ! "$F2FS_IO" setflags compression "$tmp_file" >> "$LOG_FILE" 2>&1 ||
-           ! cat "$file" > "$tmp_file" 2>> "$LOG_FILE"; then
-            rm -f "$tmp_file"; continue
+        # Unflagged, or flagged with another algorithm (zstd): re-create as lz4.
+        released=$(recreate "$file" lz4) || continue
+        if [ "$flagged" = yes ]; then
+            echo x >> "$TMP_DIR/n_converted"; mode="converted to lz4"
+        else
+            echo x >> "$TMP_DIR/n_copied"; mode=copied
         fi
-        if ! released=$(compress_release "$tmp_file"); then
-            rm -f "$tmp_file"; continue
-        fi
-        # %a = octal permissions, %u = owner UID, %g = owner GID
-        chmod "$(stat -c %a "$file")" "$tmp_file" &&
-        chown "$(stat -c %u "$file"):$(stat -c %g "$file")" "$tmp_file" &&
-        touch -r "$file" "$tmp_file" &&
-        mv -f "$tmp_file" "$file" 2>> "$LOG_FILE" || {
-            echo "Failed to swap optimized file into place: $(short_name "$file")" >> "$LOG_FILE"
-            rm -f "$tmp_file"; continue
-        }
-        restorecon "$file" 2>> "$LOG_FILE"
-        mode=copied
     fi
 
     if [ "$released" -gt 0 ]; then
@@ -350,10 +440,12 @@ done
 skipped_einval=0
 [ -f "$TMP_DIR/einval" ] && skipped_einval=$(wc -l < "$TMP_DIR/einval")
 skip_listed=$(wc -l < "$TMP_DIR/skip.new")
-n_inplace=0; n_copied=0; n_recompressed=0
+n_inplace=0; n_copied=0; n_recompressed=0; n_converted=0; n_plain=0
 [ -f "$TMP_DIR/n_inplace" ] && n_inplace=$(wc -l < "$TMP_DIR/n_inplace")
 [ -f "$TMP_DIR/n_copied" ] && n_copied=$(wc -l < "$TMP_DIR/n_copied")
 [ -f "$TMP_DIR/n_recompressed" ] && n_recompressed=$(wc -l < "$TMP_DIR/n_recompressed")
+[ -f "$TMP_DIR/n_converted" ] && n_converted=$(wc -l < "$TMP_DIR/n_converted")
+[ -f "$TMP_DIR/n_plain" ] && n_plain=$(wc -l < "$TMP_DIR/n_plain")
 mv -f "$TMP_DIR/skip.new" "$SKIP_LIST"
 rm -rf "$TMP_DIR"
 sync
@@ -368,7 +460,9 @@ fi
 ELAPSED_TOTAL=$(( $(date +%s) - START_TIME ))
 {
     echo "[SUCCESS] F2FS optimization cycle finalized."
-    echo ">> Files Compressed This Run: $compressed_count (in place $n_inplace, copied $n_copied, recompressed $n_recompressed)"
+    echo ">> Compression: $COMPRESS (KernelSU module f2fs_compress); /data mounted with $(grep -o 'compress_algorithm=[^,]*' /proc/mounts | head -n 1)"
+    echo ">> Files Compressed This Run: $compressed_count (in place $n_inplace, copied $n_copied, converted to lz4 $n_converted, recompressed $n_recompressed)"
+    echo ">> Converted Back to Plain: $n_plain"
     echo ">> Released Earlier Without Gain: $skip_listed on the skip list ($skipped_einval new)"
     echo ">> Reclaimed Storage Blocks: $released_blocks_total"
     echo ">> Estimated Space Savings: $((released_blocks_total * 4 / 1024)) MiB"
