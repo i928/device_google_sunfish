@@ -327,9 +327,24 @@ compress_release_quiet() {
     echo "$n"
 }
 
+# Free space a re-create must leave on /data, in KiB (1 GiB). A re-create
+# writes the whole file uncompressed before the original goes away, and
+# converting back to plain grows /data for good (~0.9 GB for all apps), so on
+# a nearly full phone files are skipped -- counted, retried the next run --
+# instead of filling /data.
+FREE_RESERVE_KB=1048576
+
 # Re-create $1 as plain ($2 = plain) or lz4-compressed ($2 = lz4) and rename
 # it over the original; prints the released block count (0 for plain).
 recreate() {
+    # df -P: 1024-byte blocks, available in column 4
+    free_kb=$(df -P /data 2>/dev/null | awk 'NR == 2 { print $4 }')
+    case "$free_kb" in ''|*[!0-9]*) free_kb=0 ;; esac
+    need_kb=$(( $(stat -c %s "$1") / 1024 + FREE_RESERVE_KB ))
+    if [ "$free_kb" -lt "$need_kb" ]; then
+        echo x >> "$TMP_DIR/n_lowspace"
+        return 1
+    fi
     tmp_file="$TMP_DIR/$(basename "$1").tmp"
     rm -f "$tmp_file"; touch "$tmp_file"
     if [ "$2" = lz4 ]; then
@@ -457,6 +472,8 @@ n_inplace=0; n_copied=0; n_recompressed=0; n_converted=0; n_plain=0
 [ -f "$TMP_DIR/n_recompressed" ] && n_recompressed=$(wc -l < "$TMP_DIR/n_recompressed")
 [ -f "$TMP_DIR/n_converted" ] && n_converted=$(wc -l < "$TMP_DIR/n_converted")
 [ -f "$TMP_DIR/n_plain" ] && n_plain=$(wc -l < "$TMP_DIR/n_plain")
+n_lowspace=0
+[ -f "$TMP_DIR/n_lowspace" ] && n_lowspace=$(wc -l < "$TMP_DIR/n_lowspace")
 # zstd -> lz4: total time and size of the files converted this run
 conv_time="none"
 [ -s "$TMP_DIR/conv_time" ] && conv_time=$(awk '{ ms += $1; b += $2; n++ }
@@ -481,6 +498,8 @@ ELAPSED_TOTAL=$(( $(date +%s) - START_TIME ))
     echo ">> Files Compressed This Run: $compressed_count (in place $n_inplace, copied $n_copied, converted to lz4 $n_converted, recompressed $n_recompressed)"
     echo ">> zstd -> lz4 Conversion Time: $conv_time"
     echo ">> Converted Back to Plain: $n_plain"
+    [ "$n_lowspace" -gt 0 ] &&
+        echo ">> Skipped, Low Free Space: $n_lowspace files (need file size + 1 GiB free on /data; retried next run)"
     echo ">> Released Earlier Without Gain: $skip_listed on the skip list ($skipped_einval new)"
     echo ">> Reclaimed Storage Blocks: $released_blocks_total"
     echo ">> Estimated Space Savings: $((released_blocks_total * 4 / 1024)) MiB"
