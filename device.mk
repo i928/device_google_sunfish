@@ -89,6 +89,7 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/init.data-adb-seed.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/init.data-adb-seed.rc \
     $(LOCAL_PATH)/data-adb-seed/daily_clean.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/daily_clean.sh \
     $(LOCAL_PATH)/data-adb-seed/boot-completed.d/daily_clean_timer.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/boot-completed.d/daily_clean_timer.sh \
+    $(LOCAL_PATH)/data-adb-seed/boot-completed.d/shizuku_dedup.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/boot-completed.d/shizuku_dedup.sh \
     $(LOCAL_PATH)/data-adb-seed/boot-completed.d/revanced_yt_client.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/boot-completed.d/revanced_yt_client.sh \
     $(LOCAL_PATH)/data-adb-seed/boot-completed.d/release_hide_apps.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/data-adb-seed/boot-completed.d/release_hide_apps.sh \
 
