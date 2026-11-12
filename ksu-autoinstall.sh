@@ -429,6 +429,23 @@ while [ "$(getprop sys.boot_completed)" != "1" ]; do
     sleep 2
 done
 
+# On the first boot of a freshly installed slot (not yet marked successful),
+# vold mounts /data with checkpoint=disable and commits only once the boot is
+# confirmed good. Rebooting before that rolls /data back, so the next boot is a
+# "first boot" again: install, reboot, roll back... until the bootloader runs
+# out of retries and falls back to the other slot (seen 2026-11-12: sideload +
+# format data). Wait for the commit; if it never comes, do not reboot.
+cp_wait=0
+while grep -q ' /data f2fs .*checkpoint=disable' /proc/mounts; do
+	cp_wait=$((cp_wait + 1))
+	if [ "$cp_wait" -gt 150 ]; then
+		log "[NO REBOOT] /data checkpoint not committed after 5 min; reboot by hand to activate."
+		exit 0
+	fi
+	sleep 2
+done
+[ "$cp_wait" -gt 0 ] && { log "[CHECKPOINT] /data committed after $((cp_wait * 2)) s."; sync; }
+
 : > "$STATE/.rebooted"
 log "[REBOOT CMD] Full reboot to activate $installed module(s) (not waiting for setup wizard)!"
 setprop sys.powerctl reboot,ksu-autoinstall
